@@ -8,10 +8,41 @@
 //!
 //! ## Features
 //!
-//! * Async/Sync actors.
-//! * Actor communication in a local/thread context.
+//! * Async actors.
+//! * Actor communication in a local context.
 //! * Using Futures for asynchronous message handling.
 //! * Typed messages (No `Any` type). Generic messages are allowed.
+//!
+//! ## Examples
+//!
+//! ```rust
+//! use xactor::*;
+//!
+//! #[xactor::message(result = "String")]
+//! struct ToUppercase(String);
+//!
+//! struct MyActor;
+//!
+//! impl Actor for MyActor {}
+//!
+//! #[async_trait::async_trait]
+//! impl Handler<ToUppercase> for MyActor {
+//!     async fn handle(&mut self, _ctx: &Context<Self>, msg: ToUppercase) -> String {
+//!         msg.0.to_uppercase()
+//!     }
+//! }
+//!
+//! #[async_std::main]
+//! async fn main() -> Result<()> {
+//!     // Start actor and get its address
+//!     let mut addr = MyActor.start();
+//!
+//!     // Send message `ToUppercase` to actor via addr
+//!     let res = addr.call(ToUppercase("lowercase".to_string())).await?;
+//!     assert_eq!(res, "LOWERCASE");
+//!     Ok(())
+//! }
+//! ```
 //!
 //! ## Performance
 //!
@@ -22,7 +53,7 @@
 //! |Actix   |          1548 ms|    14 ms|
 //! |Xactor  |           930 ms|    30 ms|
 //!
-//! _Code:_ https://github.com/sunli829/xactor-benchmarks
+//! [GitHub repository](https://github.com/sunli829/xactor-benchmarks)
 //!
 //! ## References
 //!
@@ -35,8 +66,12 @@ mod caller;
 mod context;
 mod service;
 
+pub type Result<T> = anyhow::Result<T>;
+pub type Error = anyhow::Error;
+
 pub use actor::{Actor, Handler, Message};
 pub use addr::Addr;
 pub use caller::{Caller, Sender};
 pub use context::Context;
 pub use service::Service;
+pub use xactor_derive::message;

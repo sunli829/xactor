@@ -23,17 +23,11 @@ impl<A> Context<A> {
     /// use async_std::task;
     /// use std::time::Duration;
     ///
+    /// #[xactor::message]
     /// struct Add(i32);
     ///
-    /// impl Message for Add {
-    ///     type Result = ();
-    /// }
-    ///
+    /// #[xactor::message(result = "i32")]
     /// struct GetSum;
-    ///
-    /// impl Message for GetSum {
-    ///     type Result = i32;
-    /// }
     ///
     /// #[derive(Default)]
     /// struct MyActor(i32);
@@ -61,7 +55,7 @@ impl<A> Context<A> {
     /// }
     ///
     /// #[async_std::main]
-    /// async fn main() -> anyhow::Result<()> {
+    /// async fn main() -> Result<()> {
     ///     let mut addr = MyActor::start_default();
     ///     task::sleep(Duration::from_secs(1)).await; // Wait for the stream to complete
     ///     let res = addr.call(GetSum).await?;

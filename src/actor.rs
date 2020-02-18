@@ -56,11 +56,8 @@ pub trait Actor: Sized + Send + 'static {
     ///
     /// impl Actor for MyActor {}
     ///
+    /// #[xactor::message(result = "i32")]
     /// struct MyMsg(i32);
-    ///
-    /// impl Message for MyMsg {
-    ///     type Result = i32;
-    /// }
     ///
     /// #[async_trait::async_trait]
     /// impl Handler<MyMsg> for MyActor {
@@ -70,11 +67,11 @@ pub trait Actor: Sized + Send + 'static {
     /// }
     ///
     /// #[async_std::main]
-    /// async fn main() -> anyhow::Result<()> {
+    /// async fn main() -> Result<()> {
     ///     // Start actor and get its address
     ///     let mut addr = MyActor.start();
     ///
-    ///     // Call 'MyMsg' to actor via addr
+    ///     // Send message `MyMsg` to actor via addr
     ///     let res = addr.call(MyMsg(10)).await?;
     ///     assert_eq!(res, 100);
     ///     Ok(())

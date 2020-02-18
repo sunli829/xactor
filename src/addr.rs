@@ -1,5 +1,4 @@
-use crate::{Actor, Caller, Context, Handler, Message, Sender};
-use anyhow::Result;
+use crate::{Actor, Caller, Context, Handler, Message, Result, Sender};
 use futures::channel::{mpsc, oneshot};
 use futures::lock::Mutex;
 use futures::Future;

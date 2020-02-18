@@ -1,5 +1,4 @@
-use crate::Message;
-use anyhow::Result;
+use crate::{Message, Result};
 use std::future::Future;
 use std::pin::Pin;
 
