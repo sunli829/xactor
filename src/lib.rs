@@ -1,4 +1,4 @@
-//! # XActor is a rust actors framework based on async-std
+//! # Xactor is a rust actors framework based on async-std
 //!
 //! ## Documentation
 //!
@@ -12,6 +12,17 @@
 //! * Actor communication in a local/thread context.
 //! * Using Futures for asynchronous message handling.
 //! * Typed messages (No `Any` type). Generic messages are allowed.
+//!
+//! ## Performance
+//!
+//! *Actix vs. xactor*
+//!
+//! |        |Wait for response|Send only|
+//! |--------|-----------------|---------|
+//! |Actix   |          1548 ms|    14 ms|
+//! |Xactor  |           930 ms|    30 ms|
+//!
+//! **Code** https://github.com/sunli829/xactor
 //!
 //! ## References
 //!
