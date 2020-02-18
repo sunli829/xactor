@@ -1,0 +1,20 @@
+[package]
+name = "xactor"
+version = "0.2.0"
+authors = ["sunli <scott_s829@163.com>"]
+description = "Xactor is a rust actors framework based on async-std"
+edition = "2018"
+publish = true
+license = "MIT"
+documentation = "https://docs.rs/xactor/"
+homepage = "https://github.com/sunli829/xactor"
+repository = "https://github.com/sunli829/xactor"
+keywords = ["actor", "futures", "async", "xactor", "async-std"]
+categories = ["network-programming", "asynchronous"]
+
+[dependencies]
+futures = "0.3.4"
+async-trait = "0.1.24"
+async-std = { version = "1.5.0", features = ["attributes"] }
+once_cell = "1.3.1"
+anyhow = "1.0.26"
