@@ -15,14 +15,14 @@
 //!
 //! ## Performance
 //!
-//! *Actix vs. xactor*
+//! **Actix vs. Xactor**
 //!
 //! |        |Wait for response|Send only|
 //! |--------|-----------------|---------|
 //! |Actix   |          1548 ms|    14 ms|
 //! |Xactor  |           930 ms|    30 ms|
 //!
-//! **Code** https://github.com/sunli829/xactor
+//! _Code:_ https://github.com/sunli829/xactor-benchmarks
 //!
 //! ## References
 //!
