@@ -1,0 +1,21 @@
+[package]
+name = "xactor-derive"
+version = "0.1.0"
+authors = ["sunli <scott_s829@163.com>"]
+description = "Xactor macros"
+edition = "2018"
+publish = true
+license = "MIT"
+documentation = "https://docs.rs/xactor/"
+homepage = "https://github.com/sunli829/xactor"
+repository = "https://github.com/sunli829/xactor"
+keywords = ["actor", "futures", "async", "xactor", "async-std"]
+categories = ["network-programming", "asynchronous"]
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro2 = "1.0.6"
+syn = { version = "1.0.13", features = ["full"] }
+quote = "1.0.2"
