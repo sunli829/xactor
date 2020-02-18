@@ -81,7 +81,7 @@ pub trait Actor: Sized + Send + 'static {
     /// }
     /// ```
     fn start(self) -> Addr<Self> {
-        let (tx, mut rx) = mpsc::channel::<ExecFn<Self>>(16);
+        let (tx, mut rx) = mpsc::unbounded::<ExecFn<Self>>();
         let addr = Addr(tx);
 
         let actor = Arc::new(Mutex::new(self));

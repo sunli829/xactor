@@ -79,7 +79,7 @@ impl<A> Context<A> {
         let mut addr = self.addr.clone();
         task::spawn(async move {
             while let Some(msg) = stream.next().await {
-                if let Err(_) = addr.send(msg).await {
+                if let Err(_) = addr.send(msg) {
                     return;
                 }
             }
@@ -95,7 +95,7 @@ impl<A> Context<A> {
         let mut addr = self.addr.clone();
         task::spawn(async move {
             task::sleep(after).await;
-            addr.send(msg).await.ok();
+            addr.send(msg).ok();
         });
     }
 
@@ -111,7 +111,7 @@ impl<A> Context<A> {
         task::spawn(async move {
             loop {
                 task::sleep(dur).await;
-                if let Err(_) = addr.send(f()).await {
+                if let Err(_) = addr.send(f()) {
                     break;
                 }
             }

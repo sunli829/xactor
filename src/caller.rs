@@ -8,8 +8,7 @@ pub(crate) type CallerFn<T> = Box<
         + 'static,
 >;
 
-pub(crate) type SenderFn<T> =
-    Box<dyn Fn(T) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'static>> + 'static>;
+pub(crate) type SenderFn<T> = Box<dyn Fn(T) -> Result<()> + 'static>;
 
 /// Caller of a specific message type
 pub struct Caller<T: Message>(pub(crate) CallerFn<T>);
@@ -24,7 +23,7 @@ impl<T: Message> Caller<T> {
 pub struct Sender<T: Message>(pub(crate) SenderFn<T>);
 
 impl<T: Message<Result = ()>> Sender<T> {
-    pub async fn send(&mut self, msg: T) -> Result<()> {
-        self.0(msg).await
+    pub fn send(&mut self, msg: T) -> Result<()> {
+        self.0(msg)
     }
 }
