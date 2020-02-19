@@ -62,6 +62,7 @@
 
 mod actor;
 mod addr;
+mod broker;
 mod caller;
 mod context;
 mod service;
@@ -71,6 +72,7 @@ pub type Error = anyhow::Error;
 
 pub use actor::{Actor, Handler, Message};
 pub use addr::Addr;
+pub use broker::Broker;
 pub use caller::{Caller, Sender};
 pub use context::Context;
 pub use service::Service;

@@ -1,10 +1,13 @@
-use crate::{Addr, Handler, Message};
+use crate::broker::{Subscribe, Unsubscribe};
+use crate::{Addr, Broker, Handler, Message, Result, Service};
 use async_std::task;
 use futures::{Stream, StreamExt};
+use std::any::TypeId;
 use std::time::Duration;
 
 ///An actor execution context.
 pub struct Context<A> {
+    pub(crate) actor_id: u64,
     pub(crate) addr: Addr<A>,
 }
 
@@ -12,6 +15,11 @@ impl<A> Context<A> {
     /// Returns the address of the actor.
     pub fn address(&self) -> Addr<A> {
         self.addr.clone()
+    }
+
+    /// Returns the id of the actor.
+    pub fn actor_id(&self) -> u64 {
+        self.actor_id
     }
 
     /// Create a stream handler for the actor.
@@ -119,5 +127,26 @@ impl<A> Context<A> {
         T: Message<Result = ()> + Clone + Sync,
     {
         self.send_interval_with(move || msg.clone(), dur);
+    }
+
+    /// Subscribes to a message of a specified type.
+    pub fn subscribe<T: Message<Result = ()>>(&self) -> Result<()>
+    where
+        A: Handler<T>,
+    {
+        let mut broker = Broker::from_registry();
+        broker.send(Subscribe {
+            id: self.actor_id,
+            sender: self.address().sender::<T>(),
+        })
+    }
+
+    /// Unsubscribe to a message of a specified type.
+    pub fn unsubscribe<T: Message<Result = ()>>(&self) -> Result<()> {
+        let mut broker = Broker::from_registry();
+        broker.send(Unsubscribe {
+            type_id: TypeId::of::<T>(),
+            id: self.actor_id,
+        })
     }
 }

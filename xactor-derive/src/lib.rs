@@ -10,8 +10,8 @@ use syn::{parse_macro_input, DeriveInput, Error, Meta, NestedMeta, AttributeArgs
 ///
 /// # Examples
 ///
-/// ```rust
-/// #[xactor::message(result="i32")]
+/// ```ignore
+/// #[message(result = "i32")]
 /// struct TestMessage(i32);
 /// ```
 #[proc_macro_attribute]

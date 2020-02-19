@@ -7,7 +7,7 @@ pub(crate) type CallerFn<T> = Box<
         + 'static,
 >;
 
-pub(crate) type SenderFn<T> = Box<dyn Fn(T) -> Result<()> + 'static>;
+pub(crate) type SenderFn<T> = Box<dyn Fn(T) -> Result<()> + 'static + Send>;
 
 /// Caller of a specific message type
 pub struct Caller<T: Message>(pub(crate) CallerFn<T>);

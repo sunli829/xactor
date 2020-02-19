@@ -4,6 +4,8 @@ use async_std::task;
 use futures::channel::mpsc;
 use futures::lock::Mutex;
 use futures::StreamExt;
+use once_cell::sync::OnceCell;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 /// Represents a message that can be handled by the actor.
@@ -77,21 +79,26 @@ pub trait Actor: Sized + Send + 'static {
     ///     Ok(())
     /// }
     /// ```
-    fn start(self) -> Addr<Self> {
+    fn start(mut self) -> Addr<Self> {
+        static ACTOR_ID: OnceCell<AtomicU64> = OnceCell::new();
+
+        // Get an actor id
+        let actor_id = ACTOR_ID
+            .get_or_init(|| Default::default())
+            .fetch_add(1, Ordering::Relaxed);
+
         let (tx, mut rx) = mpsc::unbounded::<ExecFn<Self>>();
-        let addr = Addr(tx);
+        let addr = Addr { actor_id, tx };
+
+        // Call started
+        task::block_on(self.started(&Context {
+            actor_id,
+            addr: addr.clone(),
+        }));
 
         let actor = Arc::new(Mutex::new(self));
         task::spawn({
-            let addr = addr.clone();
             async move {
-                actor
-                    .lock()
-                    .await
-                    .started(&Context { addr: addr.clone() })
-                    .await;
-                drop(addr);
-
                 while let Some(f) = rx.next().await {
                     f(actor.clone()).await;
                 }

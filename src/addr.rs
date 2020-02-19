@@ -2,6 +2,7 @@ use crate::{Actor, Caller, Context, Handler, Message, Result, Sender};
 use futures::channel::{mpsc, oneshot};
 use futures::lock::Mutex;
 use futures::Future;
+use std::hash::{Hash, Hasher};
 use std::pin::Pin;
 use std::sync::Arc;
 
@@ -13,24 +14,44 @@ pub(crate) type ExecFn<A> = Box<dyn FnOnce(Arc<Mutex<A>>) -> ExecFuture + Send +
 ///
 /// When all references to `Addr<A>` are dropped, the actor ends.
 /// You can use `Clone` trait to create multiple copies of `Addr<A>`.
-pub struct Addr<A>(pub(crate) mpsc::UnboundedSender<ExecFn<A>>);
+pub struct Addr<A> {
+    pub(crate) actor_id: u64,
+    pub(crate) tx: mpsc::UnboundedSender<ExecFn<A>>,
+}
 
 impl<A> Clone for Addr<A> {
     fn clone(&self) -> Self {
-        Self(self.0.clone())
+        Self {
+            actor_id: self.actor_id,
+            tx: self.tx.clone(),
+        }
+    }
+}
+
+impl<A> Hash for Addr<A> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.actor_id.hash(state)
     }
 }
 
 impl<A: Actor> Addr<A> {
+    /// Returns the id of the actor.
+    pub fn actor_id(&self) -> u64 {
+        self.actor_id
+    }
+
     /// Send a message `msg` to the actor and wait for the return value.
     pub async fn call<T: Message>(&mut self, msg: T) -> Result<T::Result>
     where
         A: Handler<T>,
     {
         let (tx, rx) = oneshot::channel();
-        let ctx = Context { addr: self.clone() };
+        let ctx = Context {
+            actor_id: self.actor_id,
+            addr: self.clone(),
+        };
 
-        self.0.start_send(Box::new(move |actor| {
+        self.tx.start_send(Box::new(move |actor| {
             Box::pin(async move {
                 let mut actor = actor.lock().await;
                 let res = actor.handle(&ctx, msg).await;
@@ -46,8 +67,11 @@ impl<A: Actor> Addr<A> {
     where
         A: Handler<T>,
     {
-        let ctx = Context { addr: self.clone() };
-        self.0.start_send(Box::new(move |actor| {
+        let ctx = Context {
+            actor_id: self.actor_id,
+            addr: self.clone(),
+        };
+        self.tx.start_send(Box::new(move |actor| {
             Box::pin(async move {
                 let mut actor = actor.lock().await;
                 actor.handle(&ctx, msg).await;
