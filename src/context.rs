@@ -2,7 +2,6 @@ use crate::broker::{Subscribe, Unsubscribe};
 use crate::{Addr, Broker, Handler, Message, Result, Service};
 use async_std::task;
 use futures::{Stream, StreamExt};
-use std::any::TypeId;
 use std::time::Duration;
 
 ///An actor execution context.
@@ -134,7 +133,7 @@ impl<A> Context<A> {
     where
         A: Handler<T>,
     {
-        let mut broker = Broker::from_registry();
+        let mut broker = Broker::<T>::from_registry();
         broker.send(Subscribe {
             id: self.actor_id,
             sender: self.address().sender::<T>(),
@@ -143,10 +142,7 @@ impl<A> Context<A> {
 
     /// Unsubscribe to a message of a specified type.
     pub fn unsubscribe<T: Message<Result = ()>>(&self) -> Result<()> {
-        let mut broker = Broker::from_registry();
-        broker.send(Unsubscribe {
-            type_id: TypeId::of::<T>(),
-            id: self.actor_id,
-        })
+        let mut broker = Broker::<T>::from_registry();
+        broker.send(Unsubscribe { id: self.actor_id })
     }
 }
