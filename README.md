@@ -1,5 +1,23 @@
 # Xactor is a rust actors framework based on async-std
 
+<div align="center">
+  <!-- Crates version -->
+  <a href="https://crates.io/crates/xactor">
+    <img src="https://img.shields.io/crates/v/xactor.svg?style=flat-square"
+    alt="Crates.io version" />
+  </a>
+  <!-- Downloads -->
+  <a href="https://crates.io/crates/xactor">
+    <img src="https://img.shields.io/crates/d/xactor.svg?style=flat-square"
+      alt="Download" />
+  </a>
+  <!-- docs.rs docs -->
+  <a href="https://docs.rs/xactor">
+    <img src="https://img.shields.io/badge/docs-latest-blue.svg?style=flat-square"
+      alt="docs.rs docs" />
+  </a>
+</div>
+
 ## Documentation
 
 * [GitHub repository](https://github.com/sunli829/xactor)
