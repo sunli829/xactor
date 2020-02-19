@@ -18,7 +18,7 @@
 //! ```rust
 //! use xactor::*;
 //!
-//! #[xactor::message(result = "String")]
+//! #[message(result = "String")]
 //! struct ToUppercase(String);
 //!
 //! struct MyActor;

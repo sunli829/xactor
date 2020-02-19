@@ -22,7 +22,7 @@ impl<A> Clone for Addr<A> {
 }
 
 impl<A: Actor> Addr<A> {
-    /// Send a message to the actor and wait for the return value.
+    /// Send a message `msg` to the actor and wait for the return value.
     pub async fn call<T: Message>(&mut self, msg: T) -> Result<T::Result>
     where
         A: Handler<T>,
@@ -41,7 +41,7 @@ impl<A: Actor> Addr<A> {
         Ok(rx.await?)
     }
 
-    /// Send a message to the actor without waiting for the return value.
+    /// Send a message `msg` to the actor without waiting for the return value.
     pub fn send<T: Message<Result = ()>>(&mut self, msg: T) -> Result<()>
     where
         A: Handler<T>,

@@ -23,10 +23,10 @@ impl<A> Context<A> {
     /// use async_std::task;
     /// use std::time::Duration;
     ///
-    /// #[xactor::message]
+    /// #[message]
     /// struct Add(i32);
     ///
-    /// #[xactor::message(result = "i32")]
+    /// #[message(result = "i32")]
     /// struct GetSum;
     ///
     /// #[derive(Default)]
