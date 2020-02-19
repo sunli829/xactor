@@ -18,7 +18,7 @@
 ```rust
 use xactor::*;
 
-#[xactor::message(String)]
+#[message(result = "String")]
 struct ToUppercase(String);
 
 struct MyActor;
@@ -27,7 +27,7 @@ impl Actor for MyActor {}
 
 #[async_trait::async_trait]
 impl Handler<ToUppercase> for MyActor {
-    async fn handle(&mut self, _ctx: &Context<Self>, msg: ToUppercase) {
+    async fn handle(&mut self, _ctx: &Context<Self>, msg: ToUppercase) -> String {
         msg.0.to_uppercase()
     }
 }
@@ -38,7 +38,7 @@ async fn main() -> Result<()> {
     let mut addr = MyActor.start().await;
 
     // Send message `ToUppercase` to actor via addr
-    let res = addr.call(ToUppercase("lowercase")).await?;
+    let res = addr.call(ToUppercase("lowercase".to_string())).await?;
     assert_eq!(res, "LOWERCASE");
     Ok(())
 }
@@ -53,7 +53,7 @@ async fn main() -> Result<()> {
 |Actix   |          1548 ms|    14 ms|
 |Xactor  |           930 ms|    30 ms|
 
-[Github repository](https://github.com/sunli829/xactor-benchmarks)
+[GitHub repository](https://github.com/sunli829/xactor-benchmarks)
 
 ## References
 
