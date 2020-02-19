@@ -50,7 +50,7 @@ impl<T: Message<Result = ()> + Clone> Message for Publish<T> {
 /// #[async_trait::async_trait]
 /// impl Actor for MyActor {
 ///     async fn started(&mut self, ctx: &Context<Self>)  {
-///         ctx.subscribe::<MyMsg>();
+///         ctx.subscribe::<MyMsg>().await;
 ///     }
 /// }
 ///
@@ -58,27 +58,25 @@ impl<T: Message<Result = ()> + Clone> Message for Publish<T> {
 /// impl Handler<MyMsg> for MyActor {
 ///     async fn handle(&mut self, _ctx: &Context<Self>, msg: MyMsg) {
 ///         self.0 += msg.0;
-///         println!("add {}", self.0);
 ///     }
 /// }
 ///
 /// #[async_trait::async_trait]
 /// impl Handler<GetValue> for MyActor {
 ///     async fn handle(&mut self, _ctx: &Context<Self>, _msg: GetValue) -> String {
-///         println!("get {}", self.0);
 ///         self.0.clone()
 ///     }
 /// }
 ///
 /// #[async_std::main]
 /// async fn main() -> Result<()> {
-///     let mut addr1 = MyActor::start_default();
-///     let mut addr2 = MyActor::start_default();
+///     let mut addr1 = MyActor::start_default().await;
+///     let mut addr2 = MyActor::start_default().await;
 ///
-///     Broker::from_registry().publish(MyMsg("a"));
-///     Broker::from_registry().publish(MyMsg("b"));
+///     Broker::from_registry().await.publish(MyMsg("a"));
+///     Broker::from_registry().await.publish(MyMsg("b"));
 ///
-///     task::sleep(Duration::from_secs(1)).await; // Wait for the actors started
+///     task::sleep(Duration::from_secs(1)).await; // Wait for the messages
 ///
 ///     assert_eq!(addr1.call(GetValue).await?, "ab");
 ///     assert_eq!(addr2.call(GetValue).await?, "ab");

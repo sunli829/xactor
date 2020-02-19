@@ -40,11 +40,11 @@ pub trait Actor: Sized + Send + 'static {
     /// Construct and start a new actor, returning its address.
     ///
     /// This is constructs a new actor using the `Default` trait, and invokes its `start` method.
-    fn start_default() -> Addr<Self>
+    async fn start_default() -> Addr<Self>
     where
         Self: Default,
     {
-        Self::default().start()
+        Self::default().start().await
     }
 
     /// Start a new actor, returning its address.
@@ -71,7 +71,7 @@ pub trait Actor: Sized + Send + 'static {
     /// #[async_std::main]
     /// async fn main() -> Result<()> {
     ///     // Start actor and get its address
-    ///     let mut addr = MyActor.start();
+    ///     let mut addr = MyActor.start().await;
     ///
     ///     // Send message `MyMsg` to actor via addr
     ///     let res = addr.call(MyMsg(10)).await?;
@@ -79,7 +79,7 @@ pub trait Actor: Sized + Send + 'static {
     ///     Ok(())
     /// }
     /// ```
-    fn start(mut self) -> Addr<Self> {
+    async fn start(mut self) -> Addr<Self> {
         static ACTOR_ID: OnceCell<AtomicU64> = OnceCell::new();
 
         // Get an actor id
@@ -91,10 +91,11 @@ pub trait Actor: Sized + Send + 'static {
         let addr = Addr { actor_id, tx };
 
         // Call started
-        task::block_on(self.started(&Context {
+        self.started(&Context {
             actor_id,
             addr: addr.clone(),
-        }));
+        })
+        .await;
 
         let actor = Arc::new(Mutex::new(self));
         task::spawn({

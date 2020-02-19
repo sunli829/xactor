@@ -35,7 +35,7 @@ impl Handler<ToUppercase> for MyActor {
 #[async_std::main]
 async fn main() -> Result<()> {
     // Start actor and get its address
-    let mut addr = MyActor.start();
+    let mut addr = MyActor.start().await;
 
     // Send message `ToUppercase` to actor via addr
     let res = addr.call(ToUppercase("lowercase")).await?;
