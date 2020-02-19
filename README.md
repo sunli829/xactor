@@ -1,6 +1,8 @@
 # Xactor is a rust actors framework based on async-std
 
 <div align="center">
+  <!-- CI -->
+  <img src="https://github.com/sunli829/potatonet/workflows/CI/badge.svg" />
   <!-- Crates version -->
   <a href="https://crates.io/crates/xactor">
     <img src="https://img.shields.io/crates/v/xactor.svg?style=flat-square"
