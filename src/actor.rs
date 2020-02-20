@@ -33,10 +33,12 @@ pub trait Handler<T: Message>: Actor {
 #[async_trait::async_trait]
 pub trait Actor: Sized + Send + 'static {
     /// Called when the actor is first started.
-    async fn started(&mut self, _ctx: &Context<Self>) {}
+    #[allow(unused_variables)]
+    async fn started(&mut self, ctx: &Context<Self>) {}
 
     /// Called after an actor is stopped.
-    async fn stopped(&mut self, _ctx: &Context<Self>) {}
+    #[allow(unused_variables)]
+    async fn stopped(&mut self, ctx: &Context<Self>) {}
 
     /// Construct and start a new actor, returning its address.
     ///
