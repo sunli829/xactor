@@ -1,4 +1,4 @@
-use crate::{Actor, Caller, Context, Handler, Message, Result, Sender};
+use crate::{Actor, Caller, Context, Error, Handler, Message, Result, Sender};
 use futures::channel::{mpsc, oneshot};
 use futures::lock::Mutex;
 use futures::Future;
@@ -8,7 +8,13 @@ use std::sync::Arc;
 
 type ExecFuture = Pin<Box<dyn Future<Output = ()> + Send + 'static>>;
 
-pub(crate) type ExecFn<A> = Box<dyn FnOnce(Arc<Mutex<A>>) -> ExecFuture + Send + 'static>;
+pub(crate) type ExecFn<A> =
+    Box<dyn FnOnce(Arc<Mutex<A>>, Arc<Context<A>>) -> ExecFuture + Send + 'static>;
+
+pub(crate) enum ActorEvent<A> {
+    Exec(ExecFn<A>),
+    Stop(Option<Error>),
+}
 
 /// The address of an actor.
 ///
@@ -16,7 +22,7 @@ pub(crate) type ExecFn<A> = Box<dyn FnOnce(Arc<Mutex<A>>) -> ExecFuture + Send +
 /// You can use `Clone` trait to create multiple copies of `Addr<A>`.
 pub struct Addr<A> {
     pub(crate) actor_id: u64,
-    pub(crate) tx: mpsc::UnboundedSender<ExecFn<A>>,
+    pub(crate) tx: mpsc::UnboundedSender<ActorEvent<A>>,
 }
 
 impl<A> Clone for Addr<A> {
@@ -25,6 +31,12 @@ impl<A> Clone for Addr<A> {
             actor_id: self.actor_id,
             tx: self.tx.clone(),
         }
+    }
+}
+
+impl<A> PartialEq for Addr<A> {
+    fn eq(&self, other: &Self) -> bool {
+        self.actor_id == other.actor_id
     }
 }
 
@@ -46,18 +58,14 @@ impl<A: Actor> Addr<A> {
         A: Handler<T>,
     {
         let (tx, rx) = oneshot::channel();
-        let ctx = Context {
-            actor_id: self.actor_id,
-            addr: self.clone(),
-        };
-
-        self.tx.start_send(Box::new(move |actor| {
-            Box::pin(async move {
-                let mut actor = actor.lock().await;
-                let res = actor.handle(&ctx, msg).await;
-                let _ = tx.send(res);
-            })
-        }))?;
+        self.tx
+            .start_send(ActorEvent::Exec(Box::new(move |actor, ctx| {
+                Box::pin(async move {
+                    let mut actor = actor.lock().await;
+                    let res = actor.handle(&ctx, msg).await;
+                    let _ = tx.send(res);
+                })
+            })))?;
 
         Ok(rx.await?)
     }
@@ -67,16 +75,13 @@ impl<A: Actor> Addr<A> {
     where
         A: Handler<T>,
     {
-        let ctx = Context {
-            actor_id: self.actor_id,
-            addr: self.clone(),
-        };
-        self.tx.start_send(Box::new(move |actor| {
-            Box::pin(async move {
-                let mut actor = actor.lock().await;
-                actor.handle(&ctx, msg).await;
-            })
-        }))?;
+        self.tx
+            .start_send(ActorEvent::Exec(Box::new(move |actor, ctx| {
+                Box::pin(async move {
+                    let mut actor = actor.lock().await;
+                    actor.handle(&ctx, msg).await;
+                })
+            })))?;
         Ok(())
     }
 

@@ -1,16 +1,39 @@
+use crate::addr::ActorEvent;
 use crate::broker::{Subscribe, Unsubscribe};
-use crate::{Addr, Broker, Handler, Message, Result, Service};
+use crate::{Addr, Broker, Error, Handler, Message, Result, Service};
 use async_std::task;
+use futures::channel::mpsc;
 use futures::{Stream, StreamExt};
+use once_cell::sync::OnceCell;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 
 ///An actor execution context.
 pub struct Context<A> {
-    pub(crate) actor_id: u64,
-    pub(crate) addr: Addr<A>,
+    actor_id: u64,
+    addr: Addr<A>,
 }
 
 impl<A> Context<A> {
+    pub(crate) fn new() -> (Arc<Self>, mpsc::UnboundedReceiver<ActorEvent<A>>) {
+        static ACTOR_ID: OnceCell<AtomicU64> = OnceCell::new();
+
+        // Get an actor id
+        let actor_id = ACTOR_ID
+            .get_or_init(|| Default::default())
+            .fetch_add(1, Ordering::Relaxed);
+
+        let (tx, rx) = mpsc::unbounded::<ActorEvent<A>>();
+        (
+            Arc::new(Self {
+                actor_id,
+                addr: Addr { actor_id, tx },
+            }),
+            rx,
+        )
+    }
+
     /// Returns the address of the actor.
     pub fn address(&self) -> Addr<A> {
         self.addr.clone()
@@ -19,6 +42,11 @@ impl<A> Context<A> {
     /// Returns the id of the actor.
     pub fn actor_id(&self) -> u64 {
         self.actor_id
+    }
+
+    /// Stop the actor.
+    pub fn stop(&self, err: Option<Error>) {
+        self.addr.tx.clone().start_send(ActorEvent::Stop(err)).ok();
     }
 
     /// Create a stream handler for the actor.

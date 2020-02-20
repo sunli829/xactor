@@ -1,11 +1,8 @@
-use crate::addr::ExecFn;
+use crate::addr::ActorEvent;
 use crate::{Addr, Context};
 use async_std::task;
-use futures::channel::mpsc;
 use futures::lock::Mutex;
 use futures::StreamExt;
-use once_cell::sync::OnceCell;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 /// Represents a message that can be handled by the actor.
@@ -34,8 +31,11 @@ pub trait Handler<T: Message>: Actor {
 /// All messages are statically typed.
 #[async_trait::async_trait]
 pub trait Actor: Sized + Send + 'static {
-    /// Called when the actor is first started
+    /// Called when the actor is first started.
     async fn started(&mut self, _ctx: &Context<Self>) {}
+
+    /// Called after an actor is stopped.
+    async fn stopped(&mut self, _ctx: &Context<Self>) {}
 
     /// Construct and start a new actor, returning its address.
     ///
@@ -80,29 +80,24 @@ pub trait Actor: Sized + Send + 'static {
     /// }
     /// ```
     async fn start(mut self) -> Addr<Self> {
-        static ACTOR_ID: OnceCell<AtomicU64> = OnceCell::new();
-
-        // Get an actor id
-        let actor_id = ACTOR_ID
-            .get_or_init(|| Default::default())
-            .fetch_add(1, Ordering::Relaxed);
-
-        let (tx, mut rx) = mpsc::unbounded::<ExecFn<Self>>();
-        let addr = Addr { actor_id, tx };
-
-        // Call started
-        self.started(&Context {
-            actor_id,
-            addr: addr.clone(),
-        })
-        .await;
+        let (ctx, mut rx) = Context::new();
+        let addr = ctx.address();
 
         let actor = Arc::new(Mutex::new(self));
+
+        // Call started
+        actor.lock().await.started(&ctx).await;
+
         task::spawn({
             async move {
-                while let Some(f) = rx.next().await {
-                    f(actor.clone()).await;
+                while let Some(event) = rx.next().await {
+                    match event {
+                        ActorEvent::Exec(f) => f(actor.clone(), ctx.clone()).await,
+                        ActorEvent::Stop(_err) => break,
+                    }
                 }
+
+                actor.lock().await.stopped(&ctx);
             }
         });
 
