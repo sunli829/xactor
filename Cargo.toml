@@ -11,6 +11,7 @@ homepage = "https://github.com/sunli829/xactor"
 repository = "https://github.com/sunli829/xactor"
 keywords = ["actor", "futures", "async", "xactor", "async-std"]
 categories = ["network-programming", "asynchronous"]
+readme = "README.md"
 
 [dependencies]
 futures = "0.3.4"
