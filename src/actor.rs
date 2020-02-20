@@ -18,6 +18,7 @@ pub trait Message: 'static + Send {
 /// The type T is a message which can be handled by the actor.
 #[async_trait::async_trait]
 pub trait Handler<T: Message>: Actor {
+    /// Method is called for every message received by this Actor.
     async fn handle(&mut self, ctx: &Context<Self>, msg: T) -> T::Result;
 }
 
@@ -26,8 +27,20 @@ pub trait Handler<T: Message>: Actor {
 /// The type T is a stream message which can be handled by the actor.
 /// Stream messages do not need to implement the `Message` trait.
 #[async_trait::async_trait]
-pub trait StreamHandler<T>: Actor {
+#[allow(unused_variables)]
+pub trait StreamHandler<T: 'static>: Actor {
+    /// Method is called for every message received by this Actor.
     async fn handle(&mut self, ctx: &Context<Self>, msg: T);
+
+    /// Method is called when stream get polled first time.
+    async fn started(&mut self, ctx: &Context<Self>) {}
+
+    /// Method is called when stream finishes.
+    ///
+    /// By default this method stops actor execution.
+    async fn finished(&mut self, ctx: &Context<Self>) {
+        ctx.stop(None);
+    }
 }
 
 /// Actors are objects which encapsulate state and behavior.
@@ -40,13 +53,12 @@ pub trait StreamHandler<T>: Actor {
 /// By `Addr` referring to the actors, the actors must provide an `Handle<T>` implementation for this message.
 /// All messages are statically typed.
 #[async_trait::async_trait]
+#[allow(unused_variables)]
 pub trait Actor: Sized + Send + 'static {
     /// Called when the actor is first started.
-    #[allow(unused_variables)]
     async fn started(&mut self, ctx: &Context<Self>) {}
 
     /// Called after an actor is stopped.
-    #[allow(unused_variables)]
     async fn stopped(&mut self, ctx: &Context<Self>) {}
 
     /// Construct and start a new actor, returning its address.

@@ -69,6 +69,14 @@ impl<A> Context<A> {
     ///     async fn handle(&mut self, _ctx: &Context<Self>, msg: i32) {
     ///         self.0 += msg;
     ///     }
+    ///
+    ///     async fn started(&mut self, _ctx: &Context<Self>) {
+    ///         println!("stream started");
+    ///     }
+    ///
+    ///     async fn finished(&mut self, _ctx: &Context<Self>) {
+    ///         println!("stream finished");
+    ///     }
     /// }
     ///
     /// #[async_trait::async_trait]
@@ -104,11 +112,37 @@ impl<A> Context<A> {
     {
         let mut addr = self.addr.clone();
         task::spawn(async move {
+            addr.tx
+                .start_send(ActorEvent::Exec(Box::new(move |actor, ctx| {
+                    Box::pin(async move {
+                        let mut actor = actor.lock().await;
+                        StreamHandler::started(&mut *actor, &ctx).await;
+                    })
+                })))
+                .ok();
+
             while let Some(msg) = stream.next().await {
-                if let Err(_) = addr.send_stream_msg(msg) {
+                if let Err(_) = addr
+                    .tx
+                    .start_send(ActorEvent::Exec(Box::new(move |actor, ctx| {
+                        Box::pin(async move {
+                            let mut actor = actor.lock().await;
+                            StreamHandler::handle(&mut *actor, &ctx, msg).await;
+                        })
+                    })))
+                {
                     return;
                 }
             }
+
+            addr.tx
+                .start_send(ActorEvent::Exec(Box::new(move |actor, ctx| {
+                    Box::pin(async move {
+                        let mut actor = actor.lock().await;
+                        StreamHandler::finished(&mut *actor, &ctx).await;
+                    })
+                })))
+                .ok();
         });
     }
 
