@@ -14,11 +14,20 @@ pub trait Message: 'static + Send {
 }
 
 /// Describes how to handle messages of a specific type.
-/// Implementing Handler is a general way to handle incoming messages and streams.
+/// Implementing Handler is a general way to handle incoming messages.
 /// The type T is a message which can be handled by the actor.
 #[async_trait::async_trait]
 pub trait Handler<T: Message>: Actor {
     async fn handle(&mut self, ctx: &Context<Self>, msg: T) -> T::Result;
+}
+
+/// Describes how to handle messages of a specific type.
+/// Implementing Handler is a general way to handle incoming streams.
+/// The type T is a stream message which can be handled by the actor.
+/// Stream messages do not need to implement the `Message` trait.
+#[async_trait::async_trait]
+pub trait StreamHandler<T>: Actor {
+    async fn handle(&mut self, ctx: &Context<Self>, msg: T);
 }
 
 /// Actors are objects which encapsulate state and behavior.

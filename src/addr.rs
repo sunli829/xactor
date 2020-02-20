@@ -1,4 +1,4 @@
-use crate::{Actor, Caller, Context, Error, Handler, Message, Result, Sender};
+use crate::{Actor, Caller, Context, Error, Handler, Message, Result, Sender, StreamHandler};
 use futures::channel::{mpsc, oneshot};
 use futures::lock::Mutex;
 use futures::Future;
@@ -74,6 +74,21 @@ impl<A: Actor> Addr<A> {
     pub fn send<T: Message<Result = ()>>(&mut self, msg: T) -> Result<()>
     where
         A: Handler<T>,
+    {
+        self.tx
+            .start_send(ActorEvent::Exec(Box::new(move |actor, ctx| {
+                Box::pin(async move {
+                    let mut actor = actor.lock().await;
+                    actor.handle(&ctx, msg).await;
+                })
+            })))?;
+        Ok(())
+    }
+
+    pub(crate) fn send_stream_msg<T>(&mut self, msg: T) -> Result<()>
+    where
+        A: StreamHandler<T>,
+        T: Send + 'static,
     {
         self.tx
             .start_send(ActorEvent::Exec(Box::new(move |actor, ctx| {

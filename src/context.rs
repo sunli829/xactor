@@ -1,6 +1,6 @@
 use crate::addr::ActorEvent;
 use crate::broker::{Subscribe, Unsubscribe};
-use crate::{Addr, Broker, Error, Handler, Message, Result, Service};
+use crate::{Addr, Broker, Error, Handler, Message, Result, Service, StreamHandler};
 use async_std::task;
 use futures::channel::mpsc;
 use futures::{Stream, StreamExt};
@@ -102,13 +102,13 @@ impl<A> Context<A> {
     pub fn add_stream<S>(&self, mut stream: S)
     where
         S: Stream + Unpin + Send + 'static,
-        S::Item: Message<Result = ()>,
-        A: Handler<S::Item>,
+        S::Item: 'static + Send,
+        A: StreamHandler<S::Item>,
     {
         let mut addr = self.addr.clone();
         task::spawn(async move {
             while let Some(msg) = stream.next().await {
-                if let Err(_) = addr.send(msg) {
+                if let Err(_) = addr.send_stream_msg(msg) {
                     return;
                 }
             }
