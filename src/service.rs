@@ -1,8 +1,10 @@
 use crate::{Actor, Addr};
+use fnv::FnvHasher;
 use futures::lock::Mutex;
 use once_cell::sync::OnceCell;
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
+use std::hash::BuildHasherDefault;
 
 /// Trait define a system service.
 ///
@@ -11,7 +13,9 @@ use std::collections::HashMap;
 #[async_trait::async_trait]
 pub trait Service: Actor + Default {
     async fn from_registry() -> Addr<Self> {
-        static REGISTRY: OnceCell<Mutex<HashMap<TypeId, Box<dyn Any + Send>>>> = OnceCell::new();
+        static REGISTRY: OnceCell<
+            Mutex<HashMap<TypeId, Box<dyn Any + Send>, BuildHasherDefault<FnvHasher>>>,
+        > = OnceCell::new();
         let registry = REGISTRY.get_or_init(|| Default::default());
         let mut registry = registry.lock().await;
 

@@ -1,4 +1,5 @@
 use crate::addr::ActorEvent;
+use crate::system::System;
 use crate::{Actor, Addr, Context};
 use async_std::task;
 use futures::lock::Mutex;
@@ -77,6 +78,8 @@ impl Supervisor {
         A: Actor,
         F: Fn() -> A + Send + 'static,
     {
+        System::inc_count();
+
         let (ctx, mut rx) = Context::new();
         let addr = ctx.address();
 

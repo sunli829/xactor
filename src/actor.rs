@@ -1,4 +1,5 @@
 use crate::addr::ActorEvent;
+use crate::system::System;
 use crate::{Addr, Context};
 use async_std::task;
 use futures::lock::Mutex;
@@ -80,6 +81,8 @@ pub trait Actor: Sized + Send + 'static {
     /// }
     /// ```
     async fn start(mut self) -> Addr<Self> {
+        System::inc_count();
+
         let (ctx, mut rx) = Context::new();
         let addr = ctx.address();
 
@@ -98,6 +101,7 @@ pub trait Actor: Sized + Send + 'static {
                 }
 
                 actor.lock().await.stopped(&ctx);
+                System::dec_count();
             }
         });
 

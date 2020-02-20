@@ -67,6 +67,7 @@ mod caller;
 mod context;
 mod service;
 mod supervisor;
+mod system;
 
 pub type Result<T> = anyhow::Result<T>;
 pub type Error = anyhow::Error;
@@ -78,4 +79,5 @@ pub use caller::{Caller, Sender};
 pub use context::Context;
 pub use service::Service;
 pub use supervisor::Supervisor;
-pub use xactor_derive::message;
+pub use system::System;
+pub use xactor_derive::{main, message};
