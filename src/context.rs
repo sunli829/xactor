@@ -58,9 +58,6 @@ impl<A> Context<A> {
     /// use async_std::task;
     /// use std::time::Duration;
     ///
-    /// #[message]
-    /// struct Add(i32);
-    ///
     /// #[message(result = "i32")]
     /// struct GetSum;
     ///
@@ -68,9 +65,9 @@ impl<A> Context<A> {
     /// struct MyActor(i32);
     ///
     /// #[async_trait::async_trait]
-    /// impl Handler<Add> for MyActor {
-    ///     async fn handle(&mut self, _ctx: &Context<Self>, msg: Add) {
-    ///         self.0 += msg.0;
+    /// impl StreamHandler<i32> for MyActor {
+    ///     async fn handle(&mut self, _ctx: &Context<Self>, msg: i32) {
+    ///         self.0 += msg;
     ///     }
     /// }
     ///
@@ -84,7 +81,7 @@ impl<A> Context<A> {
     /// #[async_trait::async_trait]
     /// impl Actor for MyActor {
     ///     async fn started(&mut self, ctx: &Context<Self>) {
-    ///         let values = (0..100).map(Add).collect::<Vec<_>>();
+    ///         let values = (0..100).collect::<Vec<_>>();
     ///         ctx.add_stream(stream::iter(values));
     ///     }
     /// }
