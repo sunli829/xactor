@@ -4,6 +4,7 @@ use once_cell::sync::OnceCell;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+#[doc(hidden)]
 #[derive(Default)]
 pub struct System {
     waker: AtomicWaker,

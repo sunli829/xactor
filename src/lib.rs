@@ -51,7 +51,7 @@
 //! |        |Wait for response|Send only|
 //! |--------|-----------------|---------|
 //! |Actix   |          1548 ms|    14 ms|
-//! |Xactor  |           930 ms|    30 ms|
+//! |Xactor  |           930 ms|    18 ms|
 //!
 //! [GitHub repository](https://github.com/sunli829/xactor-benchmarks)
 //!
@@ -69,7 +69,10 @@ mod service;
 mod supervisor;
 mod system;
 
+/// Alias of anyhow::Result
 pub type Result<T> = anyhow::Result<T>;
+
+/// Alias of anyhow::Error
 pub type Error = anyhow::Error;
 
 pub use actor::{Actor, Handler, Message, StreamHandler};
