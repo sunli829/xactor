@@ -1,6 +1,6 @@
 [package]
 name = "xactor"
-version = "0.5.5"
+version = "0.6.0"
 authors = ["sunli <scott_s829@163.com>"]
 description = "Xactor is a rust actors framework based on async-std"
 edition = "2018"
