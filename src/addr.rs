@@ -52,6 +52,12 @@ impl<A: Actor> Addr<A> {
         self.actor_id
     }
 
+    /// Stop the actor.
+    pub fn stop(&mut self, err: Option<Error>) -> Result<()> {
+        self.tx.start_send(ActorEvent::Stop(err))?;
+        Ok(())
+    }
+
     /// Send a message `msg` to the actor and wait for the return value.
     pub async fn call<T: Message>(&mut self, msg: T) -> Result<T::Result>
     where
