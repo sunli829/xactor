@@ -66,8 +66,6 @@ async fn main() -> Result<()> {
 
 ## Performance
 
-**Actix vs. Xactor**
-
 |        |Wait for response|Send only|
 |--------|-----------------|---------|
 |Actix   |          1548 ms|    14 ms|
