@@ -123,7 +123,7 @@ pub trait Actor: Sized + Send + 'static {
                     }
                 }
 
-                actor.lock().await.stopped(&ctx);
+                actor.lock().await.stopped(&ctx).await;
                 System::dec_count();
             }
         });
