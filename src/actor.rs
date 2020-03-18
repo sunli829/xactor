@@ -2,6 +2,7 @@ use crate::addr::ActorEvent;
 use crate::system::System;
 use crate::{Addr, Context};
 use async_std::task;
+use futures::channel::mpsc::UnboundedReceiver;
 use futures::lock::Mutex;
 use futures::StreamExt;
 use std::sync::Arc;
@@ -103,31 +104,42 @@ pub trait Actor: Sized + Send + 'static {
     ///     Ok(())
     /// }
     /// ```
-    async fn start(mut self) -> Addr<Self> {
-        System::inc_count();
-
-        let (ctx, mut rx) = Context::new();
+    async fn start(self) -> Addr<Self> {
+        let (ctx, rx) = Context::new();
         let addr = ctx.address();
-
-        let actor = Arc::new(Mutex::new(self));
-
-        // Call started
-        actor.lock().await.started(&ctx).await;
-
-        task::spawn({
-            async move {
-                while let Some(event) = rx.next().await {
-                    match event {
-                        ActorEvent::Exec(f) => f(actor.clone(), ctx.clone()).await,
-                        ActorEvent::Stop(_err) => break,
-                    }
-                }
-
-                actor.lock().await.stopped(&ctx).await;
-                System::dec_count();
-            }
-        });
-
+        start_actor(ctx, rx, self, false).await;
         addr
     }
+}
+
+pub(crate) async fn start_actor<A: Actor>(
+    ctx: Arc<Context<A>>,
+    mut rx: UnboundedReceiver<ActorEvent<A>>,
+    actor: A,
+    is_service: bool,
+) {
+    if !is_service {
+        System::inc_count();
+    }
+
+    let actor = Arc::new(Mutex::new(actor));
+
+    // Call started
+    actor.lock().await.started(&ctx).await;
+
+    task::spawn({
+        async move {
+            while let Some(event) = rx.next().await {
+                match event {
+                    ActorEvent::Exec(f) => f(actor.clone(), ctx.clone()).await,
+                    ActorEvent::Stop(_err) => break,
+                }
+            }
+
+            actor.lock().await.stopped(&ctx).await;
+            if !is_service {
+                System::dec_count();
+            }
+        }
+    });
 }

@@ -1,4 +1,5 @@
-use crate::{Actor, Addr};
+use crate::actor::start_actor;
+use crate::{Actor, Addr, Context};
 use fnv::FnvHasher;
 use futures::lock::Mutex;
 use once_cell::sync::OnceCell;
@@ -55,8 +56,11 @@ pub trait Service: Actor + Default {
         match registry.get_mut(&TypeId::of::<Self>()) {
             Some(addr) => addr.downcast_ref::<Addr<Self>>().unwrap().clone(),
             None => {
-                let addr = Self::default().start().await;
-                registry.insert(TypeId::of::<Self>(), Box::new(addr.clone()));
+                let (ctx, rx) = Context::new();
+                registry.insert(TypeId::of::<Self>(), Box::new(ctx.address()));
+                drop(registry);
+                let addr = ctx.address();
+                start_actor(ctx, rx, Self::default(), true).await;
                 addr
             }
         }
@@ -83,7 +87,12 @@ pub trait LocalService: Actor + Default {
         match res {
             Some(addr) => addr,
             None => {
-                let addr = Self::default().start().await;
+                let addr = {
+                    let (ctx, rx) = Context::new();
+                    let addr = ctx.address();
+                    start_actor(ctx, rx, Self::default(), true).await;
+                    addr
+                };
                 LOCAL_REGISTRY.with(|registry| {
                     registry
                         .borrow_mut()
