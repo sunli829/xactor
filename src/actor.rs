@@ -1,7 +1,7 @@
 use crate::addr::ActorEvent;
+use crate::runtime::spawn;
 use crate::system::System;
 use crate::{Addr, Context};
-use async_std::task;
 use futures::channel::mpsc::UnboundedReceiver;
 use futures::lock::Mutex;
 use futures::StreamExt;
@@ -127,7 +127,7 @@ pub(crate) async fn start_actor<A: Actor>(
     // Call started
     actor.lock().await.started(&ctx).await;
 
-    task::spawn({
+    spawn({
         async move {
             while let Some(event) = rx.next().await {
                 match event {
