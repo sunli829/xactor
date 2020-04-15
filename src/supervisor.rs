@@ -1,7 +1,7 @@
 use crate::addr::ActorEvent;
+use crate::runtime::spawn;
 use crate::system::System;
 use crate::{Actor, Addr, Context};
-use async_std::task;
 use futures::lock::Mutex;
 use futures::StreamExt;
 use std::sync::Arc;
@@ -89,7 +89,7 @@ impl Supervisor {
         // Call started
         actor.lock().await.started(&ctx).await;
 
-        task::spawn({
+        spawn({
             async move {
                 loop {
                     while let Some(event) = rx.next().await {

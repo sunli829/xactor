@@ -92,9 +92,19 @@ pub fn main(_args: TokenStream, input: TokenStream) -> TokenStream {
                 xactor::System::wait_all().await;
             }
 
-            async_std::task::block_on(async {
-                main().await
-            })
+            #[cfg(feature = "runtime-async-std")]
+            {
+                async_std::task::block_on(async {
+                    main().await
+                })
+            }
+
+            #[cfg(feature = "runtime-tokio")]
+            {
+                tokio::task::spawn_blocking(move || async {
+                    main().await
+                });
+            }
         }
     };
     expanded.into()

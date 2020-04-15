@@ -1,7 +1,7 @@
 use crate::addr::ActorEvent;
 use crate::broker::{Subscribe, Unsubscribe};
+use crate::runtime::{sleep, spawn};
 use crate::{Addr, Broker, Error, Handler, Message, Result, Service, StreamHandler};
-use async_std::task;
 use futures::channel::mpsc;
 use futures::{Stream, StreamExt};
 use once_cell::sync::OnceCell;
@@ -111,7 +111,7 @@ impl<A> Context<A> {
         A: StreamHandler<S::Item>,
     {
         let mut addr = self.addr.clone();
-        task::spawn(async move {
+        spawn(async move {
             addr.tx
                 .start_send(ActorEvent::Exec(Box::new(move |actor, ctx| {
                     Box::pin(async move {
@@ -153,8 +153,8 @@ impl<A> Context<A> {
         T: Message<Result = ()>,
     {
         let mut addr = self.addr.clone();
-        task::spawn(async move {
-            task::sleep(after).await;
+        spawn(async move {
+            sleep(after).await;
             addr.send(msg).ok();
         });
     }
@@ -168,9 +168,9 @@ impl<A> Context<A> {
         T: Message<Result = ()>,
     {
         let mut addr = self.addr.clone();
-        task::spawn(async move {
+        spawn(async move {
             loop {
-                task::sleep(dur).await;
+                sleep(dur).await;
                 if let Err(_) = addr.send(f()) {
                     break;
                 }
