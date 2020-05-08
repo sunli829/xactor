@@ -99,7 +99,7 @@ impl Supervisor {
                         }
                     }
 
-                    actor.lock().await.stopped(&ctx);
+                    actor.lock().await.stopped(&ctx).await;
 
                     actor = Arc::new(Mutex::new(f()));
                     actor.lock().await.started(&ctx).await;
