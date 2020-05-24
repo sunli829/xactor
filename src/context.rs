@@ -9,6 +9,35 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
+// pub struct Inbox<A> {
+//     priority: mpsc::UnboundedReceiver<ActorEvent<A>>,
+//     outgoing: mpsc::UnboundedReceiver<ActorEvent<A>>,
+// }
+
+// impl<A> Inbox<A> {
+//     fn new(outgoing: mpsc::UnboundedReceiver<ActorEvent<A>>) -> (mpsc::Sender<ActorEvent<A>>, Self) {
+//         let (priority_tx, priority_rx) = mpsc::channel::<ActorEvent<A>>(16);
+
+//         (
+//             priority_tx,
+//             Self {
+//                 priority: priority_rx,
+//                 outgoing: outgoing,
+//             ),
+//         }
+//     }
+// }
+
+// impl<A> Stream for Inbox<A> {
+//     type Item = ActorEvent<A>;
+//     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<A>> {
+//         match self.priority.poll_next(cx) {
+//             Poll::Pending => self.outgoing.poll_next(cx)
+//             ready => ready,
+//         }
+//     }
+// }
+
 ///An actor execution context.
 pub struct Context<A> {
     actor_id: u64,
@@ -16,7 +45,7 @@ pub struct Context<A> {
 }
 
 impl<A> Context<A> {
-    pub(crate) fn new() -> (Arc<Self>, mpsc::UnboundedReceiver<ActorEvent<A>>) {
+    pub(crate) fn new() -> (Arc<Self>, Inbox<A>) {
         static ACTOR_ID: OnceCell<AtomicU64> = OnceCell::new();
 
         // Get an actor id
@@ -24,13 +53,16 @@ impl<A> Context<A> {
             .get_or_init(|| Default::default())
             .fetch_add(1, Ordering::Relaxed);
 
-        let (tx, rx) = mpsc::unbounded::<ActorEvent<A>>();
+        let (actor_tx, actor_rx) = mpsc::unbounded::<ActorEvent<A>>();
+        let (priority_tx, priority_rx) = mpsc::unbounded::<ActorEvent<A>>();
         (
             Arc::new(Self {
                 actor_id,
                 addr: Addr { actor_id, tx },
             }),
-            rx,
+            select! {
+                
+            },
         )
     }
 
@@ -185,6 +217,14 @@ impl<A> Context<A> {
         T: Message<Result = ()> + Clone + Sync,
     {
         self.send_interval_with(move || msg.clone(), dur);
+    }
+
+    pub fn send_with_timeout<T>(&self, msg: T, timeout: Duration)
+    where
+        A: Handler<T>,
+        T: Message,
+    {
+        let mut addr = self.addr.clone();
     }
 
     /// Subscribes to a message of a specified type.

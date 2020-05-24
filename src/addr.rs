@@ -5,6 +5,7 @@ use futures::Future;
 use std::hash::{Hash, Hasher};
 use std::pin::Pin;
 use std::sync::Arc;
+use std::time::Duration;
 
 type ExecFuture = Pin<Box<dyn Future<Output = ()> + Send + 'static>>;
 
@@ -89,6 +90,28 @@ impl<A: Actor> Addr<A> {
                 })
             })))?;
         Ok(())
+    }
+
+    /// Send a message `msg` to the actor, returning either the response or a timeout error.
+    pub fn send_with_timeout<T: Message<Result = ()>>(
+        &mut self,
+        msg: T,
+        timeout: Duration,
+    ) -> Result<T::Result>
+    where
+        A: Handler<T>,
+    {
+        let (tx, rx) = oneshot::channel();
+        self.tx
+            .try_send(ActorEvent::Exec(Box::new(move |actor, ctx| {
+                Box::pin(async move {
+                    let mut actor = actor.lock().await;
+                    // TODO race Handle against a timer future
+                    // let res = Handler::handle(&mut *actor, &ctx, msg).await;
+                    // let _ = tx.send(res);
+                })
+            })))?;
+        Ok(rx.await?)
     }
 
     /// Create a `Caller<T>` for a specific message type

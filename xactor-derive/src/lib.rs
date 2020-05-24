@@ -3,7 +3,72 @@ extern crate proc_macro;
 use proc_macro::TokenStream;
 use quote::{quote, quote_spanned};
 use syn::spanned::Spanned;
-use syn::{parse_macro_input, AttributeArgs, DeriveInput, Error, Meta, NestedMeta, ReturnType};
+use syn::{
+    parse_macro_input, AttributeArgs, DeriveInput, Error, FnArg, Ident, ImplItem, ImplItemMethod,
+    ItemImpl, Meta, NestedMeta, ReturnType, Visibility,
+};
+
+/// Implement an xactor actor type.
+#[proc_macro_attribute]
+pub fn actor(args: TokenStream, input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as ItemImpl);
+    let self_ty = &input.self_ty;
+    let (actor_methods, message_methods): (Vec<ImplItemMethod>, Vec<ImplItemMethod>) = input
+        .items
+        .into_iter()
+        .filter_map(|item| match item {
+            ImplItem::Method(m) => Some(m),
+            _ => None,
+        })
+        .partition(|method| match method.sig.ident.to_string().as_str() {
+            "started" | "stopped" | "start_default" | "start" => true,
+            _ => false,
+        });
+
+    let messages = message_methods
+        .into_iter()
+        .map(|mut m| {
+            let msg_arg = m.sig.inputs.iter().nth(2).unwrap();
+            let res = m.sig.output;
+
+            let attrs = m.attrs;
+            m.sig.ident = syn::parse_str::<Ident>("handle").unwrap();
+            m.vis = Visibility::Inherited;
+
+            if let FnArg::Typed(pat) = msg_arg {
+                let msg = pat.ty;
+                let expanded_method = quote! {
+                    #[async_trait::async_trait]
+                    impl xactor::Message for #msg {
+                        type Result = #res;
+                    }
+
+                    #[async_trait::async_trait]
+                    impl xactor::Handler<#msg> for #self_ty {
+                        #(#attrs)*
+                        #m
+                    }
+                };
+
+                expanded_method.into()
+            } else {
+                Error::new_spanned(m, "Expect `Handler::handle` method impl")
+                    .to_compile_error()
+                    .into()
+            }
+        })
+        .collect::<Vec<TokenStream>>();
+
+    // let actor_methods = actor_methods.into_iter();
+    let expanded = quote! {
+        #[async_trait::async_trait]
+        impl xactor::Actor for #self_ty {
+            #(#actor_methods)*
+        }
+        #(#messages)*
+    };
+    expanded.into()
+}
 
 /// Implement an xactor message type.
 ///
