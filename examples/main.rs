@@ -25,5 +25,5 @@ impl Handler<Die> for MyActor {
 #[xactor::main]
 async fn main() {
     // Exit the program after 3 seconds
-    let _ = MyActor.start();
+    MyActor.start().await;
 }
