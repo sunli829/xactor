@@ -7,7 +7,7 @@ compile_error!("one of 'runtime-async-std' or 'runtime-tokio' features must be e
 compile_error!("only one of 'runtime-async-std' or 'runtime-tokio' features must be enabled");
 
 #[cfg(feature = "runtime-async-std")]
-pub(crate) use async_std::{future::timeout, task::sleep, task::spawn};
+pub use async_std::{future::timeout, task::sleep, task::spawn};
 
 #[cfg(feature = "runtime-tokio")]
-pub(crate) use tokio::{task::spawn, time::delay_for as sleep, time::timeout};
+pub use tokio::{task::spawn, time::delay_for as sleep, time::timeout};
