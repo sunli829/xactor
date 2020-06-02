@@ -118,7 +118,7 @@ impl<T: Message<Result = ()>> Handler<Unsubscribe> for Broker<T> {
 #[async_trait::async_trait]
 impl<T: Message<Result = ()> + Clone> Handler<Publish<T>> for Broker<T> {
     async fn handle(&mut self, _ctx: &Context<Self>, msg: Publish<T>) {
-        for (_, sender) in &mut self.subscribes {
+        for sender in self.subscribes.values_mut() {
             if let Some(sender) = sender.downcast_mut::<Sender<T>>() {
                 sender.send(msg.0.clone()).ok();
             }

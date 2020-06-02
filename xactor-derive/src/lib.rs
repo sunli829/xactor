@@ -21,21 +21,18 @@ pub fn message(args: TokenStream, input: TokenStream) -> TokenStream {
     let mut result_type = quote! { () };
 
     for arg in args {
-        match arg {
-            NestedMeta::Meta(Meta::NameValue(nv)) => {
-                if nv.path.is_ident("result") {
-                    if let syn::Lit::Str(lit) = nv.lit {
-                        if let Ok(ty) = syn::parse_str::<syn::Type>(&lit.value()) {
-                            result_type = quote! { #ty };
-                        } else {
-                            return Error::new_spanned(&lit, "Expect type")
-                                .to_compile_error()
-                                .into();
-                        }
+        if let NestedMeta::Meta(Meta::NameValue(nv)) = arg {
+            if nv.path.is_ident("result") {
+                if let syn::Lit::Str(lit) = nv.lit {
+                    if let Ok(ty) = syn::parse_str::<syn::Type>(&lit.value()) {
+                        result_type = quote! { #ty };
+                    } else {
+                        return Error::new_spanned(&lit, "Expect type")
+                            .to_compile_error()
+                            .into();
                     }
                 }
             }
-            _ => {}
         }
     }
 
@@ -75,13 +72,10 @@ pub fn main(_args: TokenStream, input: TokenStream) -> TokenStream {
         });
     }
 
-    match ret {
-        ReturnType::Type(_, _) => {
-            return TokenStream::from(quote_spanned! { input.span() =>
-                compile_error!("main function cannot have a return value"),
-            })
-        }
-        _ => (),
+    if let ReturnType::Type(_, _) = ret {
+        return TokenStream::from(quote_spanned! { input.span() =>
+            compile_error!("main function cannot have a return value"),
+        });
     }
 
     let expanded = quote! {

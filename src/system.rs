@@ -14,7 +14,7 @@ pub struct System {
 impl System {
     fn current() -> &'static System {
         static SYSTEM: OnceCell<System> = OnceCell::new();
-        SYSTEM.get_or_init(|| Default::default())
+        SYSTEM.get_or_init(Default::default)
     }
 
     pub(crate) fn inc_count() {

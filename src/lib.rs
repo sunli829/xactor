@@ -60,6 +60,8 @@
 //! * [Actix](https://github.com/actix/actix)
 //! * [Async-std](https://github.com/async-rs/async-std)
 
+#![allow(clippy::type_complexity)]
+
 mod actor;
 mod addr;
 mod broker;

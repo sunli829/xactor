@@ -21,7 +21,7 @@ impl<A> Context<A> {
 
         // Get an actor id
         let actor_id = ACTOR_ID
-            .get_or_init(|| Default::default())
+            .get_or_init(Default::default)
             .fetch_add(1, Ordering::Relaxed);
 
         let (tx, rx) = mpsc::unbounded::<ActorEvent<A>>();
@@ -122,15 +122,15 @@ impl<A> Context<A> {
                 .ok();
 
             while let Some(msg) = stream.next().await {
-                if let Err(_) = addr
+                let res = addr
                     .tx
                     .start_send(ActorEvent::Exec(Box::new(move |actor, ctx| {
                         Box::pin(async move {
                             let mut actor = actor.lock().await;
                             StreamHandler::handle(&mut *actor, &ctx, msg).await;
                         })
-                    })))
-                {
+                    })));
+                if res.is_err() {
                     return;
                 }
             }
@@ -171,7 +171,7 @@ impl<A> Context<A> {
         spawn(async move {
             loop {
                 sleep(dur).await;
-                if let Err(_) = addr.send(f()) {
+                if addr.send(f()).is_err() {
                     break;
                 }
             }

@@ -50,7 +50,7 @@ pub trait Service: Actor + Default {
         static REGISTRY: OnceCell<
             Mutex<HashMap<TypeId, Box<dyn Any + Send>, BuildHasherDefault<FnvHasher>>>,
         > = OnceCell::new();
-        let registry = REGISTRY.get_or_init(|| Default::default());
+        let registry = REGISTRY.get_or_init(Default::default);
         let mut registry = registry.lock().await;
 
         match registry.get_mut(&TypeId::of::<Self>()) {
