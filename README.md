@@ -52,7 +52,7 @@ impl Handler<ToUppercase> for MyActor {
     }
 }
 
-#[async_std::main]
+#[xactor::main]
 async fn main() -> Result<()> {
     // Start actor and get its address
     let mut addr = MyActor.start().await;
