@@ -21,7 +21,7 @@ impl Handler<Ping> for MyActor {
     }
 }
 
-#[async_std::main]
+#[xactor::main]
 async fn main() -> Result<()> {
     // start new actor
     let mut addr = MyActor { count: 10 }.start().await;
