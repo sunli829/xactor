@@ -1,9 +1,10 @@
 extern crate proc_macro;
 
 use proc_macro::TokenStream;
+use proc_macro2::{Ident, Span};
 use quote::{quote, quote_spanned};
 use syn::spanned::Spanned;
-use syn::{parse_macro_input, AttributeArgs, DeriveInput, Error, Meta, NestedMeta, ReturnType};
+use syn::{parse_macro_input, AttributeArgs, DeriveInput, Error, Meta, NestedMeta};
 
 /// Implement an xactor message type.
 ///
@@ -52,16 +53,10 @@ pub fn message(args: TokenStream, input: TokenStream) -> TokenStream {
 /// Wait for all actors to exit.
 #[proc_macro_attribute]
 pub fn main(_args: TokenStream, input: TokenStream) -> TokenStream {
-    let input = syn::parse_macro_input!(input as syn::ItemFn);
+    let mut input = syn::parse_macro_input!(input as syn::ItemFn);
 
-    let ret = &input.sig.output;
-    let inputs = &input.sig.inputs;
-    let name = &input.sig.ident;
-    let body = &input.block;
-    let attrs = &input.attrs;
-
-    if name != "main" {
-        return TokenStream::from(quote_spanned! { name.span() =>
+    if &*input.sig.ident.to_string() != "main" {
+        return TokenStream::from(quote_spanned! { input.sig.ident.span() =>
             compile_error!("only the main function can be tagged with #[xactor::main]"),
         });
     }
@@ -72,34 +67,33 @@ pub fn main(_args: TokenStream, input: TokenStream) -> TokenStream {
         });
     }
 
-    if let ReturnType::Type(_, _) = ret {
-        return TokenStream::from(quote_spanned! { input.span() =>
-            compile_error!("main function cannot have a return value"),
-        });
-    }
+    input.sig.ident = Ident::new("__main", Span::call_site());
+    let ret = &input.sig.output;
 
     let expanded = quote! {
-        fn main() {
-            #(#attrs)*
-            async fn main(#inputs) {
-                #body
-                xactor::System::wait_all().await;
-            }
+        #input
 
+        fn main() #ret {
             #[cfg(feature = "runtime-async-std")]
             {
                 async_std::task::block_on(async {
-                    main().await
+                    let res = __main().await;
+                    xactor::System::wait_all().await;
+                    res
                 })
             }
 
             #[cfg(feature = "runtime-tokio")]
             {
-                tokio::task::spawn_blocking(move || async {
-                    main().await
-                });
+                let mut rt = tokio::runtime::Runtime::new().unwrap();
+                rt.block_on(async {
+                    let res = __main().await;
+                    xactor::System::wait_all().await;
+                    res
+                })
             }
         }
     };
+
     expanded.into()
 }
