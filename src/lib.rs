@@ -32,7 +32,7 @@
 //!     }
 //! }
 //!
-//! #[async_std::main]
+//! #[xactor::main]
 //! async fn main() -> Result<()> {
 //!     // Start actor and get its address
 //!     let mut addr = MyActor.start().await;
@@ -70,7 +70,6 @@ mod context;
 mod runtime;
 mod service;
 mod supervisor;
-mod system;
 
 /// Alias of anyhow::Result
 pub type Result<T> = anyhow::Result<T>;
@@ -86,5 +85,4 @@ pub use context::Context;
 pub use runtime::{sleep, spawn, timeout};
 pub use service::{LocalService, Service};
 pub use supervisor::Supervisor;
-pub use system::System;
 pub use xactor_derive::{main, message};

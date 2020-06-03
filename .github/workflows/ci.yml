@@ -11,7 +11,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v1
-      - name: Build
+      - name: Build with async-std
         run: cargo build --all --verbose
-      - name: Run tests
+      - name: Build with tokio
+        run: cargo build --all --features runtime-tokio --no-default-features --verbose
+      - name: Run tests with async-std
         run: cargo test --all --verbose
+      - name: Run tests with tokio
+          run: cargo test --all --verbose --features runtime-tokio --no-default-features --verbose

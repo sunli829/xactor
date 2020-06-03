@@ -1,6 +1,5 @@
 use crate::addr::ActorEvent;
 use crate::runtime::spawn;
-use crate::system::System;
 use crate::{Actor, Addr, Context};
 use futures::lock::Mutex;
 use futures::StreamExt;
@@ -20,7 +19,6 @@ impl Supervisor {
     /// ```rust
     /// use xactor::*;
     /// use std::time::Duration;
-    /// use async_std::task;
     ///
     /// #[message]
     /// struct Die;
@@ -56,7 +54,7 @@ impl Supervisor {
     ///     }
     /// }
     ///
-    /// #[async_std::main]
+    /// #[xactor::main]
     /// async fn main() -> Result<()> {
     ///     let mut addr = Supervisor::start(|| MyActor(0)).await;
     ///
@@ -67,7 +65,7 @@ impl Supervisor {
     ///     assert_eq!(addr.call(Get).await?, 2);
     ///
     ///     addr.send(Die)?;
-    ///     task::sleep(Duration::from_secs(1)).await; // Wait for actor restart
+    ///     sleep(Duration::from_secs(1)).await; // Wait for actor restart
     ///
     ///     assert_eq!(addr.call(Get).await?, 0);
     ///     Ok(())
@@ -78,9 +76,7 @@ impl Supervisor {
         A: Actor,
         F: Fn() -> A + Send + 'static,
     {
-        System::inc_count();
-
-        let (ctx, mut rx) = Context::new();
+        let (ctx, mut rx) = Context::new(None);
         let addr = ctx.address();
 
         // Create the actor

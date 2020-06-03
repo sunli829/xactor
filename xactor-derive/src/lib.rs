@@ -76,21 +76,13 @@ pub fn main(_args: TokenStream, input: TokenStream) -> TokenStream {
         fn main() #ret {
             #[cfg(feature = "runtime-async-std")]
             {
-                async_std::task::block_on(async {
-                    let res = __main().await;
-                    xactor::System::wait_all().await;
-                    res
-                })
+                async_std::task::block_on(__main())
             }
 
             #[cfg(feature = "runtime-tokio")]
             {
                 let mut rt = tokio::runtime::Runtime::new().unwrap();
-                rt.block_on(async {
-                    let res = __main().await;
-                    xactor::System::wait_all().await;
-                    res
-                })
+                rt.block_on(__main())
             }
         }
     };
