@@ -1,7 +1,9 @@
 use crate::actor::start_actor;
 use crate::{Actor, Addr, Context};
 use fnv::FnvHasher;
+use futures::channel::oneshot;
 use futures::lock::Mutex;
+use futures::FutureExt;
 use once_cell::sync::OnceCell;
 use std::any::{Any, TypeId};
 use std::cell::RefCell;
@@ -36,7 +38,7 @@ use std::hash::BuildHasherDefault;
 ///     }
 /// }
 ///
-/// #[async_std::main]
+/// #[xactor::main]
 /// async fn main() -> Result<()> {
 ///     let mut addr = MyService::from_registry().await;
 ///     assert_eq!(addr.call(AddMsg(1)).await?, 1);
@@ -56,12 +58,13 @@ pub trait Service: Actor + Default {
         match registry.get_mut(&TypeId::of::<Self>()) {
             Some(addr) => addr.downcast_ref::<Addr<Self>>().unwrap().clone(),
             None => {
-                let (ctx, rx) = Context::new();
+                let (tx_exit, rx_exit) = oneshot::channel();
+                let rx_exit = rx_exit.shared();
+                let (ctx, rx) = Context::new(Some(rx_exit));
                 registry.insert(TypeId::of::<Self>(), Box::new(ctx.address()));
                 drop(registry);
-                let addr = ctx.address();
-                start_actor(ctx, rx, Self::default(), true).await;
-                addr
+                start_actor(ctx.clone(), rx, tx_exit, Self::default()).await;
+                ctx.address()
             }
         }
     }
@@ -88,10 +91,11 @@ pub trait LocalService: Actor + Default {
             Some(addr) => addr,
             None => {
                 let addr = {
-                    let (ctx, rx) = Context::new();
-                    let addr = ctx.address();
-                    start_actor(ctx, rx, Self::default(), true).await;
-                    addr
+                    let (tx_exit, rx_exit) = oneshot::channel();
+                    let rx_exit = rx_exit.shared();
+                    let (ctx, rx) = Context::new(Some(rx_exit));
+                    start_actor(ctx.clone(), rx, tx_exit, Self::default()).await;
+                    ctx.address()
                 };
                 LOCAL_REGISTRY.with(|registry| {
                     registry

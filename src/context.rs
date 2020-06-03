@@ -2,7 +2,8 @@ use crate::addr::ActorEvent;
 use crate::broker::{Subscribe, Unsubscribe};
 use crate::runtime::{sleep, spawn};
 use crate::{Addr, Broker, Error, Handler, Message, Result, Service, StreamHandler};
-use futures::channel::mpsc;
+use futures::channel::{mpsc, oneshot};
+use futures::future::Shared;
 use futures::{Stream, StreamExt};
 use once_cell::sync::OnceCell;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -12,11 +13,14 @@ use std::time::Duration;
 ///An actor execution context.
 pub struct Context<A> {
     actor_id: u64,
-    addr: Addr<A>,
+    tx: mpsc::UnboundedSender<ActorEvent<A>>,
+    rx_exit: Option<Shared<oneshot::Receiver<()>>>,
 }
 
 impl<A> Context<A> {
-    pub(crate) fn new() -> (Arc<Self>, mpsc::UnboundedReceiver<ActorEvent<A>>) {
+    pub(crate) fn new(
+        rx_exit: Option<Shared<oneshot::Receiver<()>>>,
+    ) -> (Arc<Self>, mpsc::UnboundedReceiver<ActorEvent<A>>) {
         static ACTOR_ID: OnceCell<AtomicU64> = OnceCell::new();
 
         // Get an actor id
@@ -28,7 +32,8 @@ impl<A> Context<A> {
         (
             Arc::new(Self {
                 actor_id,
-                addr: Addr { actor_id, tx },
+                tx,
+                rx_exit,
             }),
             rx,
         )
@@ -36,7 +41,11 @@ impl<A> Context<A> {
 
     /// Returns the address of the actor.
     pub fn address(&self) -> Addr<A> {
-        self.addr.clone()
+        Addr {
+            actor_id: self.actor_id,
+            tx: self.tx.clone(),
+            rx_exit: self.rx_exit.clone(),
+        }
     }
 
     /// Returns the id of the actor.
@@ -46,7 +55,7 @@ impl<A> Context<A> {
 
     /// Stop the actor.
     pub fn stop(&self, err: Option<Error>) {
-        self.addr.tx.clone().start_send(ActorEvent::Stop(err)).ok();
+        self.tx.clone().start_send(ActorEvent::Stop(err)).ok();
     }
 
     /// Create a stream handler for the actor.
@@ -55,7 +64,6 @@ impl<A> Context<A> {
     /// ```rust
     /// use xactor::*;
     /// use futures::stream;
-    /// use async_std::task;
     /// use std::time::Duration;
     ///
     /// #[message(result = "i32")]
@@ -94,10 +102,10 @@ impl<A> Context<A> {
     ///     }
     /// }
     ///
-    /// #[async_std::main]
+    /// #[xactor::main]
     /// async fn main() -> Result<()> {
     ///     let mut addr = MyActor::start_default().await;
-    ///     task::sleep(Duration::from_secs(1)).await; // Wait for the stream to complete
+    ///     sleep(Duration::from_secs(1)).await; // Wait for the stream to complete
     ///     let res = addr.call(GetSum).await?;
     ///     assert_eq!(res, (0..100).sum::<i32>());
     ///     Ok(())
@@ -110,7 +118,7 @@ impl<A> Context<A> {
         S::Item: 'static + Send,
         A: StreamHandler<S::Item>,
     {
-        let mut addr = self.addr.clone();
+        let mut addr = self.address();
         spawn(async move {
             addr.tx
                 .start_send(ActorEvent::Exec(Box::new(move |actor, ctx| {
@@ -152,7 +160,7 @@ impl<A> Context<A> {
         A: Handler<T>,
         T: Message<Result = ()>,
     {
-        let mut addr = self.addr.clone();
+        let mut addr = self.address();
         spawn(async move {
             sleep(after).await;
             addr.send(msg).ok();
@@ -167,7 +175,7 @@ impl<A> Context<A> {
         F: Fn() -> T + Sync + Send + 'static,
         T: Message<Result = ()>,
     {
-        let mut addr = self.addr.clone();
+        let mut addr = self.address();
         spawn(async move {
             loop {
                 sleep(dur).await;

@@ -35,7 +35,6 @@ impl<T: Message<Result = ()> + Clone> Message for Publish<T> {
 /// ```rust
 /// use xactor::*;
 /// use std::time::Duration;
-/// use async_std::task;
 ///
 /// #[message]
 /// #[derive(Clone)]
@@ -68,7 +67,7 @@ impl<T: Message<Result = ()> + Clone> Message for Publish<T> {
 ///     }
 /// }
 ///
-/// #[async_std::main]
+/// #[xactor::main]
 /// async fn main() -> Result<()> {
 ///     let mut addr1 = MyActor::start_default().await;
 ///     let mut addr2 = MyActor::start_default().await;
@@ -76,7 +75,7 @@ impl<T: Message<Result = ()> + Clone> Message for Publish<T> {
 ///     Broker::from_registry().await.publish(MyMsg("a"));
 ///     Broker::from_registry().await.publish(MyMsg("b"));
 ///
-///     task::sleep(Duration::from_secs(1)).await; // Wait for the messages
+///     sleep(Duration::from_secs(1)).await; // Wait for the messages
 ///
 ///     assert_eq!(addr1.call(GetValue).await?, "ab");
 ///     assert_eq!(addr2.call(GetValue).await?, "ab");

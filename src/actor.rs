@@ -1,10 +1,10 @@
 use crate::addr::ActorEvent;
 use crate::runtime::spawn;
-use crate::system::System;
 use crate::{Addr, Context};
 use futures::channel::mpsc::UnboundedReceiver;
+use futures::channel::oneshot;
 use futures::lock::Mutex;
-use futures::StreamExt;
+use futures::{FutureExt, StreamExt};
 use std::sync::Arc;
 
 /// Represents a message that can be handled by the actor.
@@ -93,7 +93,7 @@ pub trait Actor: Sized + Send + 'static {
     ///     }
     /// }
     ///
-    /// #[async_std::main]
+    /// #[xactor::main]
     /// async fn main() -> Result<()> {
     ///     // Start actor and get its address
     ///     let mut addr = MyActor.start().await;
@@ -105,23 +105,20 @@ pub trait Actor: Sized + Send + 'static {
     /// }
     /// ```
     async fn start(self) -> Addr<Self> {
-        let (ctx, rx) = Context::new();
-        let addr = ctx.address();
-        start_actor(ctx, rx, self, false).await;
-        addr
+        let (tx_exit, rx_exit) = oneshot::channel();
+        let rx_exit = rx_exit.shared();
+        let (ctx, rx) = Context::new(Some(rx_exit));
+        start_actor(ctx.clone(), rx, tx_exit, self).await;
+        ctx.address()
     }
 }
 
 pub(crate) async fn start_actor<A: Actor>(
     ctx: Arc<Context<A>>,
     mut rx: UnboundedReceiver<ActorEvent<A>>,
+    tx_exit: oneshot::Sender<()>,
     actor: A,
-    is_service: bool,
 ) {
-    if !is_service {
-        System::inc_count();
-    }
-
     let actor = Arc::new(Mutex::new(actor));
 
     // Call started
@@ -137,9 +134,7 @@ pub(crate) async fn start_actor<A: Actor>(
             }
 
             actor.lock().await.stopped(&ctx).await;
-            if !is_service {
-                System::dec_count();
-            }
+            tx_exit.send(()).ok();
         }
     });
 }
