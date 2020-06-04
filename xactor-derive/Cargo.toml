@@ -1,6 +1,6 @@
 [package]
 name = "xactor-derive"
-version = "0.7.0"
+version = "0.7.1"
 authors = ["sunli <scott_s829@163.com>"]
 description = "Xactor macros"
 edition = "2018"
