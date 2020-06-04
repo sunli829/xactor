@@ -82,7 +82,7 @@ pub use addr::Addr;
 pub use broker::Broker;
 pub use caller::{Caller, Sender};
 pub use context::Context;
-pub use runtime::{sleep, spawn, timeout};
+pub use runtime::{block_on, sleep, spawn, timeout};
 pub use service::{LocalService, Service};
 pub use supervisor::Supervisor;
 pub use xactor_derive::{main, message};
