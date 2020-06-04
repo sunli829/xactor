@@ -18,4 +18,4 @@ jobs:
       - name: Run tests with async-std
         run: cargo test --all --verbose
       - name: Run tests with tokio
-          run: cargo test --all --verbose --features runtime-tokio --no-default-features --verbose
+        run: cargo test --all --verbose --features runtime-tokio --no-default-features --verbose
