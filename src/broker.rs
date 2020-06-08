@@ -70,11 +70,11 @@ impl<T: Message<Result = ()> + Clone> Message for Publish<T> {
 ///
 /// #[xactor::main]
 /// async fn main() -> Result<()> {
-///     let mut addr1 = MyActor::start_default().await;
-///     let mut addr2 = MyActor::start_default().await;
+///     let mut addr1 = MyActor::start_default().await?;
+///     let mut addr2 = MyActor::start_default().await?;
 ///
-///     Broker::from_registry().await.publish(MyMsg("a"));
-///     Broker::from_registry().await.publish(MyMsg("b"));
+///     Broker::from_registry().await?.publish(MyMsg("a"));
+///     Broker::from_registry().await?.publish(MyMsg("b"));
 ///
 ///     sleep(Duration::from_secs(1)).await; // Wait for the messages
 ///

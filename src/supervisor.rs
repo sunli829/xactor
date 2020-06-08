@@ -57,7 +57,7 @@ impl Supervisor {
     ///
     /// #[xactor::main]
     /// async fn main() -> Result<()> {
-    ///     let mut addr = Supervisor::start(|| MyActor(0)).await;
+    ///     let mut addr = Supervisor::start(|| MyActor(0)).await?;
     ///
     ///     addr.send(Add)?;
     ///     assert_eq!(addr.call(Get).await?, 1);
@@ -99,7 +99,7 @@ impl Supervisor {
                     actor.lock().await.stopped(&ctx).await;
 
                     actor = Arc::new(Mutex::new(f()));
-                    actor.lock().await.started(&ctx).await;
+                    actor.lock().await.started(&ctx).await.ok();
                 }
             }
         });

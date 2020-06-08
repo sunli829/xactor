@@ -99,7 +99,7 @@ pub trait Actor: Sized + Send + 'static {
     /// #[xactor::main]
     /// async fn main() -> Result<()> {
     ///     // Start actor and get its address
-    ///     let mut addr = MyActor.start().await;
+    ///     let mut addr = MyActor.start().await?;
     ///
     ///     // Send message `MyMsg` to actor via addr
     ///     let res = addr.call(MyMsg(10)).await?;
