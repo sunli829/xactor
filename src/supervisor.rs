@@ -4,6 +4,7 @@ use crate::{Actor, Addr, Context};
 use futures::lock::Mutex;
 use futures::StreamExt;
 use std::sync::Arc;
+use anyhow::Result;
 
 /// Actor supervisor
 ///
@@ -71,7 +72,7 @@ impl Supervisor {
     ///     Ok(())
     /// }
     /// ```
-    pub async fn start<A, F>(f: F) -> Addr<A>
+    pub async fn start<A, F>(f: F) -> Result<Addr<A>>
     where
         A: Actor,
         F: Fn() -> A + Send + 'static,
@@ -83,7 +84,7 @@ impl Supervisor {
         let mut actor = Arc::new(Mutex::new(f()));
 
         // Call started
-        actor.lock().await.started(&ctx).await;
+        actor.lock().await.started(&ctx).await?;
 
         spawn({
             async move {
@@ -103,6 +104,6 @@ impl Supervisor {
             }
         });
 
-        addr
+        Ok(addr)
     }
 }

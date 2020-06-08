@@ -48,8 +48,9 @@ impl<T: Message<Result = ()> + Clone> Message for Publish<T> {
 ///
 /// #[async_trait::async_trait]
 /// impl Actor for MyActor {
-///     async fn started(&mut self, ctx: &Context<Self>)  {
+///     async fn started(&mut self, ctx: &Context<Self>) -> Result<()>  {
 ///         ctx.subscribe::<MyMsg>().await;
+///         Ok(())
 ///     }
 /// }
 ///

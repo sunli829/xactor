@@ -81,8 +81,9 @@ impl<A> Context<A> {
     ///         self.0 += msg;
     ///     }
     ///
-    ///     async fn started(&mut self, _ctx: &Context<Self>) {
+    ///     async fn started(&mut self, _ctx: &Context<Self>) -> Result<()>{
     ///         println!("stream started");
+    ///         Ok(())
     ///     }
     ///
     ///     async fn finished(&mut self, _ctx: &Context<Self>) {
@@ -99,9 +100,10 @@ impl<A> Context<A> {
     ///
     /// #[async_trait::async_trait]
     /// impl Actor for MyActor {
-    ///     async fn started(&mut self, ctx: &Context<Self>) {
+    ///     async fn started(&mut self, ctx: &Context<Self>) -> Result<()> {
     ///         let values = (0..100).collect::<Vec<_>>();
     ///         ctx.add_stream(stream::iter(values));
+    ///         Ok(())
     ///     }
     /// }
     ///
