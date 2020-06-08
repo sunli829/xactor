@@ -134,6 +134,12 @@ pub(crate) async fn start_actor<A: Actor>(
             }
 
             actor.lock().await.stopped(&ctx).await;
+
+            let streams = ctx.streams.lock().unwrap();
+            for (_, handle) in streams.iter() {
+                handle.abort();
+            }
+
             tx_exit.send(()).ok();
         }
     });

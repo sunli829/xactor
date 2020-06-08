@@ -3,11 +3,12 @@ use crate::broker::{Subscribe, Unsubscribe};
 use crate::runtime::{sleep, spawn};
 use crate::{Addr, Broker, Error, Handler, Message, Result, Service, StreamHandler};
 use futures::channel::{mpsc, oneshot};
-use futures::future::Shared;
+use futures::future::{AbortHandle, Abortable, Shared};
 use futures::{Stream, StreamExt};
 use once_cell::sync::OnceCell;
+use slab::Slab;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 ///An actor execution context.
@@ -15,6 +16,7 @@ pub struct Context<A> {
     actor_id: u64,
     tx: mpsc::UnboundedSender<ActorEvent<A>>,
     rx_exit: Option<Shared<oneshot::Receiver<()>>>,
+    pub(crate) streams: Arc<Mutex<Slab<AbortHandle>>>,
 }
 
 impl<A> Context<A> {
@@ -34,6 +36,7 @@ impl<A> Context<A> {
                 actor_id,
                 tx,
                 rx_exit,
+                streams: Default::default(),
             }),
             rx,
         )
@@ -119,39 +122,54 @@ impl<A> Context<A> {
         A: StreamHandler<S::Item>,
     {
         let mut addr = self.address();
-        spawn(async move {
-            addr.tx
-                .start_send(ActorEvent::Exec(Box::new(move |actor, ctx| {
-                    Box::pin(async move {
-                        let mut actor = actor.lock().await;
-                        StreamHandler::started(&mut *actor, &ctx).await;
-                    })
-                })))
-                .ok();
+        let mut inner_streams = self.streams.lock().unwrap();
+        let entry = inner_streams.vacant_entry();
+        let id = entry.key();
+        let (handle, registration) = futures::future::AbortHandle::new_pair();
+        entry.insert(handle);
 
-            while let Some(msg) = stream.next().await {
-                let res = addr
-                    .tx
+        let fut = {
+            let streams = self.streams.clone();
+            async move {
+                addr.tx
                     .start_send(ActorEvent::Exec(Box::new(move |actor, ctx| {
                         Box::pin(async move {
                             let mut actor = actor.lock().await;
-                            StreamHandler::handle(&mut *actor, &ctx, msg).await;
+                            StreamHandler::started(&mut *actor, &ctx).await;
                         })
-                    })));
-                if res.is_err() {
-                    return;
+                    })))
+                    .ok();
+
+                while let Some(msg) = stream.next().await {
+                    let res = addr
+                        .tx
+                        .start_send(ActorEvent::Exec(Box::new(move |actor, ctx| {
+                            Box::pin(async move {
+                                let mut actor = actor.lock().await;
+                                StreamHandler::handle(&mut *actor, &ctx, msg).await;
+                            })
+                        })));
+                    if res.is_err() {
+                        return;
+                    }
+                }
+
+                addr.tx
+                    .start_send(ActorEvent::Exec(Box::new(move |actor, ctx| {
+                        Box::pin(async move {
+                            let mut actor = actor.lock().await;
+                            StreamHandler::finished(&mut *actor, &ctx).await;
+                        })
+                    })))
+                    .ok();
+
+                let mut streams = streams.lock().unwrap();
+                if streams.contains(id) {
+                    streams.remove(id);
                 }
             }
-
-            addr.tx
-                .start_send(ActorEvent::Exec(Box::new(move |actor, ctx| {
-                    Box::pin(async move {
-                        let mut actor = actor.lock().await;
-                        StreamHandler::finished(&mut *actor, &ctx).await;
-                    })
-                })))
-                .ok();
-        });
+        };
+        spawn(Abortable::new(fut, registration));
     }
 
     /// Sends the message `msg` to self after a specified period of time.
