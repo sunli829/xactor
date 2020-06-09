@@ -99,15 +99,16 @@ impl<A> Context<A> {
     ///
     /// #[async_trait::async_trait]
     /// impl Actor for MyActor {
-    ///     async fn started(&mut self, ctx: &Context<Self>) {
+    ///     async fn started(&mut self, ctx: &Context<Self>) -> Result<()> {
     ///         let values = (0..100).collect::<Vec<_>>();
     ///         ctx.add_stream(stream::iter(values));
+    ///         Ok(())
     ///     }
     /// }
     ///
     /// #[xactor::main]
     /// async fn main() -> Result<()> {
-    ///     let mut addr = MyActor::start_default().await;
+    ///     let mut addr = MyActor::start_default().await?;
     ///     sleep(Duration::from_secs(1)).await; // Wait for the stream to complete
     ///     let res = addr.call(GetSum).await?;
     ///     assert_eq!(res, (0..100).sum::<i32>());
@@ -218,7 +219,7 @@ impl<A> Context<A> {
     where
         A: Handler<T>,
     {
-        let mut broker = Broker::<T>::from_registry().await;
+        let mut broker = Broker::<T>::from_registry().await?;
         broker.send(Subscribe {
             id: self.actor_id,
             sender: self.address().sender::<T>(),
@@ -227,7 +228,7 @@ impl<A> Context<A> {
 
     /// Unsubscribe to a message of a specified type.
     pub async fn unsubscribe<T: Message<Result = ()>>(&self) -> Result<()> {
-        let mut broker = Broker::<T>::from_registry().await;
+        let mut broker = Broker::<T>::from_registry().await?;
         broker.send(Unsubscribe { id: self.actor_id })
     }
 }

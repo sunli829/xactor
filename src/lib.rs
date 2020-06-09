@@ -35,7 +35,7 @@
 //! #[xactor::main]
 //! async fn main() -> Result<()> {
 //!     // Start actor and get its address
-//!     let mut addr = MyActor.start().await;
+//!     let mut addr = MyActor.start().await?;
 //!
 //!     // Send message `ToUppercase` to actor via addr
 //!     let res = addr.call(ToUppercase("lowercase".to_string())).await?;

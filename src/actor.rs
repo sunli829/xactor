@@ -6,6 +6,7 @@ use futures::channel::oneshot;
 use futures::lock::Mutex;
 use futures::{FutureExt, StreamExt};
 use std::sync::Arc;
+use anyhow::Result;
 
 /// Represents a message that can be handled by the actor.
 pub trait Message: 'static + Send {
@@ -57,7 +58,9 @@ pub trait StreamHandler<T: 'static>: Actor {
 #[allow(unused_variables)]
 pub trait Actor: Sized + Send + 'static {
     /// Called when the actor is first started.
-    async fn started(&mut self, ctx: &Context<Self>) {}
+    async fn started(&mut self, ctx: &Context<Self>) -> Result<()> {
+        Ok(())
+    }
 
     /// Called after an actor is stopped.
     async fn stopped(&mut self, ctx: &Context<Self>) {}
@@ -65,11 +68,11 @@ pub trait Actor: Sized + Send + 'static {
     /// Construct and start a new actor, returning its address.
     ///
     /// This is constructs a new actor using the `Default` trait, and invokes its `start` method.
-    async fn start_default() -> Addr<Self>
+    async fn start_default() -> Result<Addr<Self>>
     where
         Self: Default,
     {
-        Self::default().start().await
+        Ok(Self::default().start().await?)
     }
 
     /// Start a new actor, returning its address.
@@ -96,7 +99,7 @@ pub trait Actor: Sized + Send + 'static {
     /// #[xactor::main]
     /// async fn main() -> Result<()> {
     ///     // Start actor and get its address
-    ///     let mut addr = MyActor.start().await;
+    ///     let mut addr = MyActor.start().await?;
     ///
     ///     // Send message `MyMsg` to actor via addr
     ///     let res = addr.call(MyMsg(10)).await?;
@@ -104,25 +107,25 @@ pub trait Actor: Sized + Send + 'static {
     ///     Ok(())
     /// }
     /// ```
-    async fn start(self) -> Addr<Self> {
+    async fn start(self) -> Result<Addr<Self>> {
         let (tx_exit, rx_exit) = oneshot::channel();
         let rx_exit = rx_exit.shared();
         let (ctx, rx) = Context::new(Some(rx_exit));
-        start_actor(ctx.clone(), rx, tx_exit, self).await;
-        ctx.address()
+        start_actor(ctx.clone(), rx, tx_exit, self).await?;
+        Ok(ctx.address())
     }
 }
 
-pub(crate) async fn start_actor<A: Actor>(
+pub(crate) async fn start_actor<A: Actor> (
     ctx: Arc<Context<A>>,
     mut rx: UnboundedReceiver<ActorEvent<A>>,
     tx_exit: oneshot::Sender<()>,
     actor: A,
-) {
+) -> Result<()> {
     let actor = Arc::new(Mutex::new(actor));
 
     // Call started
-    actor.lock().await.started(&ctx).await;
+    actor.lock().await.started(&ctx).await?;
 
     spawn({
         async move {
@@ -143,4 +146,6 @@ pub(crate) async fn start_actor<A: Actor>(
             tx_exit.send(()).ok();
         }
     });
+
+    Ok(())
 }

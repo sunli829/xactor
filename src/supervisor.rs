@@ -4,6 +4,7 @@ use crate::{Actor, Addr, Context};
 use futures::lock::Mutex;
 use futures::StreamExt;
 use std::sync::Arc;
+use anyhow::Result;
 
 /// Actor supervisor
 ///
@@ -56,7 +57,7 @@ impl Supervisor {
     ///
     /// #[xactor::main]
     /// async fn main() -> Result<()> {
-    ///     let mut addr = Supervisor::start(|| MyActor(0)).await;
+    ///     let mut addr = Supervisor::start(|| MyActor(0)).await?;
     ///
     ///     addr.send(Add)?;
     ///     assert_eq!(addr.call(Get).await?, 1);
@@ -71,7 +72,7 @@ impl Supervisor {
     ///     Ok(())
     /// }
     /// ```
-    pub async fn start<A, F>(f: F) -> Addr<A>
+    pub async fn start<A, F>(f: F) -> Result<Addr<A>>
     where
         A: Actor,
         F: Fn() -> A + Send + 'static,
@@ -83,7 +84,7 @@ impl Supervisor {
         let mut actor = Arc::new(Mutex::new(f()));
 
         // Call started
-        actor.lock().await.started(&ctx).await;
+        actor.lock().await.started(&ctx).await?;
 
         spawn({
             async move {
@@ -98,11 +99,11 @@ impl Supervisor {
                     actor.lock().await.stopped(&ctx).await;
 
                     actor = Arc::new(Mutex::new(f()));
-                    actor.lock().await.started(&ctx).await;
+                    actor.lock().await.started(&ctx).await.ok();
                 }
             }
         });
 
-        addr
+        Ok(addr)
     }
 }
