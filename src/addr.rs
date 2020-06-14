@@ -2,6 +2,7 @@ use crate::{Actor, Caller, Context, Error, Handler, Message, Result, Sender};
 use futures::channel::{mpsc, oneshot};
 use futures::lock::Mutex;
 use futures::Future;
+use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::pin::Pin;
 use std::sync::Arc;
@@ -31,6 +32,14 @@ impl<A> Clone for Addr<A> {
             actor_id: self.actor_id,
             tx: self.tx.clone(),
         }
+    }
+}
+
+impl<A> fmt::Debug for Addr<A> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_map()
+            .entry(&std::any::type_name::<A>(), &self.actor_id)
+            .finish()
     }
 }
 
