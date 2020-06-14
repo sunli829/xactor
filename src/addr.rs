@@ -37,8 +37,8 @@ impl<A> Clone for Addr<A> {
 
 impl<A> fmt::Debug for Addr<A> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_map()
-            .entry(&std::any::type_name::<A>(), &self.actor_id)
+        f.debug_struct(&std::any::type_name::<A>())
+            .field("addr", &self.actor_id)
             .finish()
     }
 }
