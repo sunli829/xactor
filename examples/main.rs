@@ -8,9 +8,10 @@ struct MyActor;
 
 #[async_trait::async_trait]
 impl Actor for MyActor {
-    async fn started(&mut self, ctx: &Context<Self>) {
+    async fn started(&mut self, ctx: &Context<Self>) -> Result<()> {
         // Send the Die message 3 seconds later
         ctx.send_later(Die, Duration::from_secs(3));
+        Ok(())
     }
 }
 
@@ -23,7 +24,9 @@ impl Handler<Die> for MyActor {
 }
 
 #[xactor::main]
-async fn main() {
+async fn main() -> Result<()>{
     // Exit the program after 3 seconds
-    MyActor.start();
+    let addr = MyActor.start().await?;
+    addr.wait_for_stop().await;
+    Ok(())
 }

@@ -52,7 +52,7 @@ impl Handler<ToUppercase> for MyActor {
     }
 }
 
-#[async_std::main]
+#[xactor::main]
 async fn main() -> Result<()> {
     // Start actor and get its address
     let mut addr = MyActor.start().await;
@@ -73,7 +73,29 @@ async fn main() -> Result<()> {
 
 [GitHub repository](https://github.com/sunli829/xactor-benchmarks)
 
+## Installation
+
+Xactor require `async-trait` on useland
+
+With [cargo add][cargo-add] installed run:
+
+```sh
+$ cargo add xactor
+$ cargo add async-trait
+```
+
+We also provide a set of "tokio-runtime" features instead of async-std. 
+to use it you need activate feautre: `runtime-tokio` and desable default.
+
+You can edit your `Cargo.toml` has following:
+```
+xactor = { version = "x.x.x", features = ["runtime-tokio"], default-features = false }
+```
+
+[cargo-add]: https://github.com/killercup/cargo-edit
+
 ## References
 
 * [Actix](https://github.com/actix/actix)
 * [Async-std](https://github.com/async-rs/async-std)
+* [Tokio](https://github.com/tokio-rs/tokio)

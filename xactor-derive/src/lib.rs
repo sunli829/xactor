@@ -1,9 +1,10 @@
 extern crate proc_macro;
 
 use proc_macro::TokenStream;
+use proc_macro2::{Ident, Span};
 use quote::{quote, quote_spanned};
 use syn::spanned::Spanned;
-use syn::{parse_macro_input, AttributeArgs, DeriveInput, Error, Meta, NestedMeta, ReturnType};
+use syn::{parse_macro_input, AttributeArgs, DeriveInput, Error, Meta, NestedMeta};
 
 /// Implement an xactor message type.
 ///
@@ -21,21 +22,18 @@ pub fn message(args: TokenStream, input: TokenStream) -> TokenStream {
     let mut result_type = quote! { () };
 
     for arg in args {
-        match arg {
-            NestedMeta::Meta(Meta::NameValue(nv)) => {
-                if nv.path.is_ident("result") {
-                    if let syn::Lit::Str(lit) = nv.lit {
-                        if let Ok(ty) = syn::parse_str::<syn::Type>(&lit.value()) {
-                            result_type = quote! { #ty };
-                        } else {
-                            return Error::new_spanned(&lit, "Expect type")
-                                .to_compile_error()
-                                .into();
-                        }
+        if let NestedMeta::Meta(Meta::NameValue(nv)) = arg {
+            if nv.path.is_ident("result") {
+                if let syn::Lit::Str(lit) = nv.lit {
+                    if let Ok(ty) = syn::parse_str::<syn::Type>(&lit.value()) {
+                        result_type = quote! { #ty };
+                    } else {
+                        return Error::new_spanned(&lit, "Expect type")
+                            .to_compile_error()
+                            .into();
                     }
                 }
             }
-            _ => {}
         }
     }
 
@@ -55,16 +53,10 @@ pub fn message(args: TokenStream, input: TokenStream) -> TokenStream {
 /// Wait for all actors to exit.
 #[proc_macro_attribute]
 pub fn main(_args: TokenStream, input: TokenStream) -> TokenStream {
-    let input = syn::parse_macro_input!(input as syn::ItemFn);
+    let mut input = syn::parse_macro_input!(input as syn::ItemFn);
 
-    let ret = &input.sig.output;
-    let inputs = &input.sig.inputs;
-    let name = &input.sig.ident;
-    let body = &input.block;
-    let attrs = &input.attrs;
-
-    if name != "main" {
-        return TokenStream::from(quote_spanned! { name.span() =>
+    if &*input.sig.ident.to_string() != "main" {
+        return TokenStream::from(quote_spanned! { input.sig.ident.span() =>
             compile_error!("only the main function can be tagged with #[xactor::main]"),
         });
     }
@@ -75,37 +67,16 @@ pub fn main(_args: TokenStream, input: TokenStream) -> TokenStream {
         });
     }
 
-    match ret {
-        ReturnType::Type(_, _) => {
-            return TokenStream::from(quote_spanned! { input.span() =>
-                compile_error!("main function cannot have a return value"),
-            })
-        }
-        _ => (),
-    }
+    input.sig.ident = Ident::new("__main", Span::call_site());
+    let ret = &input.sig.output;
 
     let expanded = quote! {
-        fn main() {
-            #(#attrs)*
-            async fn main(#inputs) {
-                #body
-                xactor::System::wait_all().await;
-            }
+        #input
 
-            #[cfg(feature = "runtime-async-std")]
-            {
-                async_std::task::block_on(async {
-                    main().await
-                })
-            }
-
-            #[cfg(feature = "runtime-tokio")]
-            {
-                tokio::task::spawn_blocking(move || async {
-                    main().await
-                });
-            }
+        fn main() #ret {
+            xactor::block_on(__main())
         }
     };
+
     expanded.into()
 }

@@ -1,5 +1,6 @@
 use crate::{Actor, Caller, Context, Error, Handler, Message, Result, Sender};
 use futures::channel::{mpsc, oneshot};
+use futures::future::Shared;
 use futures::lock::Mutex;
 use futures::Future;
 use std::fmt;
@@ -24,6 +25,7 @@ pub(crate) enum ActorEvent<A> {
 pub struct Addr<A> {
     pub(crate) actor_id: u64,
     pub(crate) tx: mpsc::UnboundedSender<ActorEvent<A>>,
+    pub(crate) rx_exit: Option<Shared<oneshot::Receiver<()>>>,
 }
 
 impl<A> Clone for Addr<A> {
@@ -31,6 +33,7 @@ impl<A> Clone for Addr<A> {
         Self {
             actor_id: self.actor_id,
             tx: self.tx.clone(),
+            rx_exit: self.rx_exit.clone(),
         }
     }
 }
@@ -122,5 +125,14 @@ impl<A: Actor> Addr<A> {
             let mut addr = addr.clone();
             addr.send(msg)
         }))
+    }
+
+    /// Wait for an actor to finish, and if the actor has finished, the function returns immediately.
+    pub async fn wait_for_stop(self) {
+        if let Some(rx_exit) = self.rx_exit {
+            rx_exit.await.ok();
+        } else {
+            futures::future::pending::<()>().await;
+        }
     }
 }

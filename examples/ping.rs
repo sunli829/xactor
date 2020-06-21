@@ -21,10 +21,10 @@ impl Handler<Ping> for MyActor {
     }
 }
 
-#[async_std::main]
+#[xactor::main]
 async fn main() -> Result<()> {
     // start new actor
-    let mut addr = MyActor { count: 10 }.start().await;
+    let mut addr = MyActor { count: 10 }.start().await?;
 
     // send message and get future for result
     let res = addr.call(Ping(10)).await?;

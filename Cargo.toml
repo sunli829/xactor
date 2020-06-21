@@ -1,6 +1,6 @@
 [package]
 name = "xactor"
-version = "0.6.4"
+version = "0.7.3"
 authors = ["sunli <scott_s829@163.com>"]
 description = "Xactor is a rust actors framework based on async-std"
 edition = "2018"
@@ -14,14 +14,15 @@ categories = ["network-programming", "asynchronous"]
 readme = "README.md"
 
 [dependencies]
-futures = "0.3.4"
-async-trait = "0.1.24"
-async-std = { version = "1.5.0", features = ["attributes"], optional = true }
+futures = "0.3"
+async-trait = "0.1"
+async-std = { version = "1", features = ["attributes"], optional = true }
 tokio = { version = "0.2", features = ["rt-threaded", "macros", "blocking", "time"], optional = true }
-once_cell = "1.3.1"
-anyhow = "1.0.26"
-xactor-derive = { path = "xactor-derive", version = "0.2.0"}
-fnv = "1.0.6"
+once_cell = "1.3"
+anyhow = "1.0"
+xactor-derive = { path = "xactor-derive", version = "0.7"}
+fnv = "1.0"
+slab = "0.4"
 
 [workspace]
 members = [

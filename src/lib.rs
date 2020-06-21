@@ -32,10 +32,10 @@
 //!     }
 //! }
 //!
-//! #[async_std::main]
+//! #[xactor::main]
 //! async fn main() -> Result<()> {
 //!     // Start actor and get its address
-//!     let mut addr = MyActor.start().await;
+//!     let mut addr = MyActor.start().await?;
 //!
 //!     // Send message `ToUppercase` to actor via addr
 //!     let res = addr.call(ToUppercase("lowercase".to_string())).await?;
@@ -60,6 +60,8 @@
 //! * [Actix](https://github.com/actix/actix)
 //! * [Async-std](https://github.com/async-rs/async-std)
 
+#![allow(clippy::type_complexity)]
+
 mod actor;
 mod addr;
 mod broker;
@@ -68,7 +70,6 @@ mod context;
 mod runtime;
 mod service;
 mod supervisor;
-mod system;
 
 /// Alias of anyhow::Result
 pub type Result<T> = anyhow::Result<T>;
@@ -81,7 +82,7 @@ pub use addr::Addr;
 pub use broker::Broker;
 pub use caller::{Caller, Sender};
 pub use context::Context;
+pub use runtime::{block_on, sleep, spawn, timeout};
 pub use service::{LocalService, Service};
 pub use supervisor::Supervisor;
-pub use system::System;
 pub use xactor_derive::{main, message};

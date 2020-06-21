@@ -1,10 +1,10 @@
 use crate::addr::ActorEvent;
 use crate::runtime::spawn;
-use crate::system::System;
 use crate::{Actor, Addr, Context};
 use futures::lock::Mutex;
 use futures::StreamExt;
 use std::sync::Arc;
+use anyhow::Result;
 
 /// Actor supervisor
 ///
@@ -20,7 +20,6 @@ impl Supervisor {
     /// ```rust
     /// use xactor::*;
     /// use std::time::Duration;
-    /// use async_std::task;
     ///
     /// #[message]
     /// struct Die;
@@ -56,9 +55,9 @@ impl Supervisor {
     ///     }
     /// }
     ///
-    /// #[async_std::main]
+    /// #[xactor::main]
     /// async fn main() -> Result<()> {
-    ///     let mut addr = Supervisor::start(|| MyActor(0)).await;
+    ///     let mut addr = Supervisor::start(|| MyActor(0)).await?;
     ///
     ///     addr.send(Add)?;
     ///     assert_eq!(addr.call(Get).await?, 1);
@@ -67,27 +66,25 @@ impl Supervisor {
     ///     assert_eq!(addr.call(Get).await?, 2);
     ///
     ///     addr.send(Die)?;
-    ///     task::sleep(Duration::from_secs(1)).await; // Wait for actor restart
+    ///     sleep(Duration::from_secs(1)).await; // Wait for actor restart
     ///
     ///     assert_eq!(addr.call(Get).await?, 0);
     ///     Ok(())
     /// }
     /// ```
-    pub async fn start<A, F>(f: F) -> Addr<A>
+    pub async fn start<A, F>(f: F) -> Result<Addr<A>>
     where
         A: Actor,
         F: Fn() -> A + Send + 'static,
     {
-        System::inc_count();
-
-        let (ctx, mut rx) = Context::new();
+        let (ctx, mut rx) = Context::new(None);
         let addr = ctx.address();
 
         // Create the actor
         let mut actor = Arc::new(Mutex::new(f()));
 
         // Call started
-        actor.lock().await.started(&ctx).await;
+        actor.lock().await.started(&ctx).await?;
 
         spawn({
             async move {
@@ -102,11 +99,11 @@ impl Supervisor {
                     actor.lock().await.stopped(&ctx).await;
 
                     actor = Arc::new(Mutex::new(f()));
-                    actor.lock().await.started(&ctx).await;
+                    actor.lock().await.started(&ctx).await.ok();
                 }
             }
         });
 
-        addr
+        Ok(addr)
     }
 }
