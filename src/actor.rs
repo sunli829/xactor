@@ -1,12 +1,12 @@
 use crate::addr::ActorEvent;
 use crate::runtime::spawn;
 use crate::{Addr, Context};
+use anyhow::Result;
 use futures::channel::mpsc::UnboundedReceiver;
 use futures::channel::oneshot;
 use futures::lock::Mutex;
 use futures::{FutureExt, StreamExt};
 use std::sync::Arc;
-use anyhow::Result;
 
 /// Represents a message that can be handled by the actor.
 pub trait Message: 'static + Send {
@@ -116,7 +116,7 @@ pub trait Actor: Sized + Send + 'static {
     }
 }
 
-pub(crate) async fn start_actor<A: Actor> (
+pub(crate) async fn start_actor<A: Actor>(
     ctx: Arc<Context<A>>,
     mut rx: UnboundedReceiver<ActorEvent<A>>,
     tx_exit: oneshot::Sender<()>,

@@ -13,7 +13,7 @@ pub(crate) type SenderFn<T> = Box<dyn Fn(T) -> Result<()> + 'static + Send>;
 pub struct Caller<T: Message>(pub(crate) CallerFn<T>);
 
 impl<T: Message> Caller<T> {
-    pub async fn call(&mut self, msg: T) -> Result<T::Result> {
+    pub async fn call(&self, msg: T) -> Result<T::Result> {
         self.0(msg).await
     }
 }
@@ -22,7 +22,7 @@ impl<T: Message> Caller<T> {
 pub struct Sender<T: Message>(pub(crate) SenderFn<T>);
 
 impl<T: Message<Result = ()>> Sender<T> {
-    pub fn send(&mut self, msg: T) -> Result<()> {
+    pub fn send(&self, msg: T) -> Result<()> {
         self.0(msg)
     }
 }

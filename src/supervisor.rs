@@ -1,10 +1,10 @@
 use crate::addr::ActorEvent;
 use crate::runtime::spawn;
 use crate::{Actor, Addr, Context};
+use anyhow::Result;
 use futures::lock::Mutex;
 use futures::StreamExt;
 use std::sync::Arc;
-use anyhow::Result;
 
 /// Actor supervisor
 ///
