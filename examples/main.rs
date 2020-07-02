@@ -24,7 +24,7 @@ impl Handler<Die> for MyActor {
 }
 
 #[xactor::main]
-async fn main() -> Result<()>{
+async fn main() -> Result<()> {
     // Exit the program after 3 seconds
     let addr = MyActor.start().await?;
     addr.wait_for_stop().await;

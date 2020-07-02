@@ -1,5 +1,6 @@
 use crate::actor::start_actor;
 use crate::{Actor, Addr, Context};
+use anyhow::Result;
 use fnv::FnvHasher;
 use futures::channel::oneshot;
 use futures::lock::Mutex;
@@ -9,7 +10,6 @@ use std::any::{Any, TypeId};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::hash::BuildHasherDefault;
-use anyhow::Result;
 
 /// Trait define a global service.
 ///
