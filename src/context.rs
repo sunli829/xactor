@@ -8,21 +8,25 @@ use futures::{Stream, StreamExt};
 use once_cell::sync::OnceCell;
 use slab::Slab;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, Weak};
 use std::time::Duration;
 
 ///An actor execution context.
 pub struct Context<A> {
     actor_id: u64,
-    tx: mpsc::UnboundedSender<ActorEvent<A>>,
-    rx_exit: Option<Shared<oneshot::Receiver<()>>>,
+    tx: Weak<mpsc::UnboundedSender<ActorEvent<A>>>,
+    pub(crate) rx_exit: Option<Shared<oneshot::Receiver<()>>>,
     pub(crate) streams: Arc<Mutex<Slab<AbortHandle>>>,
 }
 
 impl<A> Context<A> {
     pub(crate) fn new(
         rx_exit: Option<Shared<oneshot::Receiver<()>>>,
-    ) -> (Arc<Self>, mpsc::UnboundedReceiver<ActorEvent<A>>) {
+    ) -> (
+        Arc<Self>,
+        mpsc::UnboundedReceiver<ActorEvent<A>>,
+        Arc<mpsc::UnboundedSender<ActorEvent<A>>>,
+    ) {
         static ACTOR_ID: OnceCell<AtomicU64> = OnceCell::new();
 
         // Get an actor id
@@ -31,14 +35,17 @@ impl<A> Context<A> {
             .fetch_add(1, Ordering::Relaxed);
 
         let (tx, rx) = mpsc::unbounded::<ActorEvent<A>>();
+        let tx = Arc::new(tx);
+        let weak_tx = Arc::downgrade(&tx);
         (
             Arc::new(Self {
                 actor_id,
-                tx,
+                tx: weak_tx,
                 rx_exit,
                 streams: Default::default(),
             }),
             rx,
+            tx,
         )
     }
 
@@ -46,7 +53,7 @@ impl<A> Context<A> {
     pub fn address(&self) -> Addr<A> {
         Addr {
             actor_id: self.actor_id,
-            tx: self.tx.clone(),
+            tx: self.tx.upgrade().unwrap(),
             rx_exit: self.rx_exit.clone(),
         }
     }
@@ -58,7 +65,11 @@ impl<A> Context<A> {
 
     /// Stop the actor.
     pub fn stop(&self, err: Option<Error>) {
-        self.tx.clone().start_send(ActorEvent::Stop(err)).ok();
+        if let Some(tx) = self.tx.upgrade() {
+            mpsc::UnboundedSender::clone(&*tx)
+                .start_send(ActorEvent::Stop(err))
+                .ok();
+        }
     }
 
     /// Create a stream handler for the actor.
@@ -122,7 +133,7 @@ impl<A> Context<A> {
         S::Item: 'static + Send,
         A: StreamHandler<S::Item>,
     {
-        let mut addr = self.address();
+        let tx = self.tx.clone();
         let mut inner_streams = self.streams.lock().unwrap();
         let entry = inner_streams.vacant_entry();
         let id = entry.key();
@@ -132,37 +143,47 @@ impl<A> Context<A> {
         let fut = {
             let streams = self.streams.clone();
             async move {
-                addr.tx
-                    .start_send(ActorEvent::Exec(Box::new(move |actor, ctx| {
-                        Box::pin(async move {
-                            let mut actor = actor.lock().await;
-                            StreamHandler::started(&mut *actor, &ctx).await;
-                        })
-                    })))
-                    .ok();
-
-                while let Some(msg) = stream.next().await {
-                    let res = addr
-                        .tx
+                if let Some(tx) = tx.upgrade() {
+                    mpsc::UnboundedSender::clone(&*tx)
                         .start_send(ActorEvent::Exec(Box::new(move |actor, ctx| {
                             Box::pin(async move {
                                 let mut actor = actor.lock().await;
-                                StreamHandler::handle(&mut *actor, &ctx, msg).await;
+                                StreamHandler::started(&mut *actor, &ctx).await;
                             })
-                        })));
-                    if res.is_err() {
+                        })))
+                        .ok();
+                } else {
+                    return;
+                }
+
+                while let Some(msg) = stream.next().await {
+                    if let Some(tx) = tx.upgrade() {
+                        let res = mpsc::UnboundedSender::clone(&*tx).start_send(ActorEvent::Exec(
+                            Box::new(move |actor, ctx| {
+                                Box::pin(async move {
+                                    let mut actor = actor.lock().await;
+                                    StreamHandler::handle(&mut *actor, &ctx, msg).await;
+                                })
+                            }),
+                        ));
+                        if res.is_err() {
+                            return;
+                        }
+                    } else {
                         return;
                     }
                 }
 
-                addr.tx
-                    .start_send(ActorEvent::Exec(Box::new(move |actor, ctx| {
-                        Box::pin(async move {
-                            let mut actor = actor.lock().await;
-                            StreamHandler::finished(&mut *actor, &ctx).await;
-                        })
-                    })))
-                    .ok();
+                if let Some(tx) = tx.upgrade() {
+                    mpsc::UnboundedSender::clone(&*tx)
+                        .start_send(ActorEvent::Exec(Box::new(move |actor, ctx| {
+                            Box::pin(async move {
+                                let mut actor = actor.lock().await;
+                                StreamHandler::finished(&mut *actor, &ctx).await;
+                            })
+                        })))
+                        .ok();
+                }
 
                 let mut streams = streams.lock().unwrap();
                 if streams.contains(id) {
@@ -179,7 +200,7 @@ impl<A> Context<A> {
         A: Handler<T>,
         T: Message<Result = ()>,
     {
-        let mut addr = self.address();
+        let addr = self.address();
         spawn(async move {
             sleep(after).await;
             addr.send(msg).ok();
@@ -194,7 +215,7 @@ impl<A> Context<A> {
         F: Fn() -> T + Sync + Send + 'static,
         T: Message<Result = ()>,
     {
-        let mut addr = self.address();
+        let addr = self.address();
         spawn(async move {
             loop {
                 sleep(dur).await;
@@ -219,16 +240,20 @@ impl<A> Context<A> {
     where
         A: Handler<T>,
     {
-        let mut broker = Broker::<T>::from_registry().await?;
-        broker.send(Subscribe {
-            id: self.actor_id,
-            sender: self.address().sender::<T>(),
-        })
+        let broker = Broker::<T>::from_registry().await?;
+        let addr = self.address();
+        broker
+            .send(Subscribe {
+                id: self.actor_id,
+                sender: addr.sender::<T>(),
+            })
+            .ok();
+        Ok(())
     }
 
     /// Unsubscribe to a message of a specified type.
     pub async fn unsubscribe<T: Message<Result = ()>>(&self) -> Result<()> {
-        let mut broker = Broker::<T>::from_registry().await?;
+        let broker = Broker::<T>::from_registry().await?;
         broker.send(Unsubscribe { id: self.actor_id })
     }
 }

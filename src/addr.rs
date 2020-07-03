@@ -23,7 +23,7 @@ pub(crate) enum ActorEvent<A> {
 /// You can use `Clone` trait to create multiple copies of `Addr<A>`.
 pub struct Addr<A> {
     pub(crate) actor_id: u64,
-    pub(crate) tx: mpsc::UnboundedSender<ActorEvent<A>>,
+    pub(crate) tx: Arc<mpsc::UnboundedSender<ActorEvent<A>>>,
     pub(crate) rx_exit: Option<Shared<oneshot::Receiver<()>>>,
 }
 
@@ -57,40 +57,42 @@ impl<A: Actor> Addr<A> {
 
     /// Stop the actor.
     pub fn stop(&mut self, err: Option<Error>) -> Result<()> {
-        self.tx.start_send(ActorEvent::Stop(err))?;
+        mpsc::UnboundedSender::clone(&*self.tx).start_send(ActorEvent::Stop(err))?;
         Ok(())
     }
 
     /// Send a message `msg` to the actor and wait for the return value.
-    pub async fn call<T: Message>(&mut self, msg: T) -> Result<T::Result>
+    pub async fn call<T: Message>(&self, msg: T) -> Result<T::Result>
     where
         A: Handler<T>,
     {
         let (tx, rx) = oneshot::channel();
-        self.tx
-            .start_send(ActorEvent::Exec(Box::new(move |actor, ctx| {
+        mpsc::UnboundedSender::clone(&*self.tx).start_send(ActorEvent::Exec(Box::new(
+            move |actor, ctx| {
                 Box::pin(async move {
                     let mut actor = actor.lock().await;
                     let res = Handler::handle(&mut *actor, &ctx, msg).await;
                     let _ = tx.send(res);
                 })
-            })))?;
+            },
+        )))?;
 
         Ok(rx.await?)
     }
 
     /// Send a message `msg` to the actor without waiting for the return value.
-    pub fn send<T: Message<Result = ()>>(&mut self, msg: T) -> Result<()>
+    pub fn send<T: Message<Result = ()>>(&self, msg: T) -> Result<()>
     where
         A: Handler<T>,
     {
-        self.tx
-            .start_send(ActorEvent::Exec(Box::new(move |actor, ctx| {
+        mpsc::UnboundedSender::clone(&*self.tx).start_send(ActorEvent::Exec(Box::new(
+            move |actor, ctx| {
                 Box::pin(async move {
                     let mut actor = actor.lock().await;
                     Handler::handle(&mut *actor, &ctx, msg).await;
                 })
-            })))?;
+            },
+        )))?;
         Ok(())
     }
 
@@ -101,7 +103,7 @@ impl<A: Actor> Addr<A> {
     {
         let addr = self.clone();
         Caller(Box::new(move |msg| {
-            let mut addr = addr.clone();
+            let addr = addr.clone();
             Box::pin(async move { addr.call(msg).await })
         }))
     }
@@ -113,7 +115,7 @@ impl<A: Actor> Addr<A> {
     {
         let addr = self.clone();
         Sender(Box::new(move |msg| {
-            let mut addr = addr.clone();
+            let addr = addr.clone();
             addr.send(msg)
         }))
     }

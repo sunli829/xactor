@@ -110,9 +110,13 @@ pub trait Actor: Sized + Send + 'static {
     async fn start(self) -> Result<Addr<Self>> {
         let (tx_exit, rx_exit) = oneshot::channel();
         let rx_exit = rx_exit.shared();
-        let (ctx, rx) = Context::new(Some(rx_exit));
+        let (ctx, rx, tx) = Context::new(Some(rx_exit));
         start_actor(ctx.clone(), rx, tx_exit, self).await?;
-        Ok(ctx.address())
+        Ok(Addr {
+            actor_id: ctx.actor_id(),
+            tx,
+            rx_exit: ctx.rx_exit.clone(),
+        })
     }
 }
 
@@ -129,6 +133,7 @@ pub(crate) async fn start_actor<A: Actor>(
 
     spawn({
         async move {
+            println!("{} started", ctx.actor_id());
             while let Some(event) = rx.next().await {
                 match event {
                     ActorEvent::Exec(f) => f(actor.clone(), ctx.clone()).await,
@@ -136,6 +141,7 @@ pub(crate) async fn start_actor<A: Actor>(
                 }
             }
 
+            println!("{} stopped", ctx.actor_id());
             actor.lock().await.stopped(&ctx).await;
 
             let streams = ctx.streams.lock().unwrap();

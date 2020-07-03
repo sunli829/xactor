@@ -77,8 +77,12 @@ impl Supervisor {
         A: Actor,
         F: Fn() -> A + Send + 'static,
     {
-        let (ctx, mut rx) = Context::new(None);
-        let addr = ctx.address();
+        let (ctx, mut rx, tx) = Context::new(None);
+        let addr = Addr {
+            actor_id: ctx.actor_id(),
+            tx,
+            rx_exit: ctx.rx_exit.clone(),
+        };
 
         // Create the actor
         let mut actor = Arc::new(Mutex::new(f()));
