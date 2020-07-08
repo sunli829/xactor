@@ -8,7 +8,7 @@ use futures::{Stream, StreamExt};
 use once_cell::sync::OnceCell;
 use slab::Slab;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex, Weak};
+use std::sync::{Arc, Weak};
 use std::time::Duration;
 
 ///An actor execution context.
@@ -16,14 +16,14 @@ pub struct Context<A> {
     actor_id: u64,
     tx: Weak<mpsc::UnboundedSender<ActorEvent<A>>>,
     pub(crate) rx_exit: Option<Shared<oneshot::Receiver<()>>>,
-    pub(crate) streams: Arc<Mutex<Slab<AbortHandle>>>,
+    pub(crate) streams: Slab<AbortHandle>,
 }
 
 impl<A> Context<A> {
     pub(crate) fn new(
         rx_exit: Option<Shared<oneshot::Receiver<()>>>,
     ) -> (
-        Arc<Self>,
+        Self,
         mpsc::UnboundedReceiver<ActorEvent<A>>,
         Arc<mpsc::UnboundedSender<ActorEvent<A>>>,
     ) {
@@ -38,12 +38,12 @@ impl<A> Context<A> {
         let tx = Arc::new(tx);
         let weak_tx = Arc::downgrade(&tx);
         (
-            Arc::new(Self {
+            Self {
                 actor_id,
                 tx: weak_tx,
                 rx_exit,
                 streams: Default::default(),
-            }),
+            },
             rx,
             tx,
         )
@@ -110,7 +110,7 @@ impl<A> Context<A> {
     ///
     /// #[async_trait::async_trait]
     /// impl Actor for MyActor {
-    ///     async fn started(&mut self, ctx: &Context<Self>) -> Result<()> {
+    ///     async fn started(&mut self, ctx: &mut Context<Self>) -> Result<()> {
     ///         let values = (0..100).collect::<Vec<_>>();
     ///         ctx.add_stream(stream::iter(values));
     ///         Ok(())
@@ -127,28 +127,25 @@ impl<A> Context<A> {
     /// }
     /// ```
     /// ```
-    pub fn add_stream<S>(&self, mut stream: S)
+    pub fn add_stream<S>(&mut self, mut stream: S)
     where
         S: Stream + Unpin + Send + 'static,
         S::Item: 'static + Send,
         A: StreamHandler<S::Item>,
     {
         let tx = self.tx.clone();
-        let mut inner_streams = self.streams.lock().unwrap();
-        let entry = inner_streams.vacant_entry();
+        let entry = self.streams.vacant_entry();
         let id = entry.key();
         let (handle, registration) = futures::future::AbortHandle::new_pair();
         entry.insert(handle);
 
         let fut = {
-            let streams = self.streams.clone();
             async move {
                 if let Some(tx) = tx.upgrade() {
                     mpsc::UnboundedSender::clone(&*tx)
                         .start_send(ActorEvent::Exec(Box::new(move |actor, ctx| {
                             Box::pin(async move {
-                                let mut actor = actor.lock().await;
-                                StreamHandler::started(&mut *actor, &ctx).await;
+                                StreamHandler::started(actor, ctx).await;
                             })
                         })))
                         .ok();
@@ -161,8 +158,7 @@ impl<A> Context<A> {
                         let res = mpsc::UnboundedSender::clone(&*tx).start_send(ActorEvent::Exec(
                             Box::new(move |actor, ctx| {
                                 Box::pin(async move {
-                                    let mut actor = actor.lock().await;
-                                    StreamHandler::handle(&mut *actor, &ctx, msg).await;
+                                    StreamHandler::handle(actor, ctx, msg).await;
                                 })
                             }),
                         ));
@@ -178,16 +174,16 @@ impl<A> Context<A> {
                     mpsc::UnboundedSender::clone(&*tx)
                         .start_send(ActorEvent::Exec(Box::new(move |actor, ctx| {
                             Box::pin(async move {
-                                let mut actor = actor.lock().await;
-                                StreamHandler::finished(&mut *actor, &ctx).await;
+                                StreamHandler::finished(actor, ctx).await;
                             })
                         })))
                         .ok();
                 }
 
-                let mut streams = streams.lock().unwrap();
-                if streams.contains(id) {
-                    streams.remove(id);
+                if let Some(tx) = tx.upgrade() {
+                    mpsc::UnboundedSender::clone(&*tx)
+                        .start_send(ActorEvent::RemoveStream(id))
+                        .ok();
                 }
             }
         };

@@ -31,7 +31,7 @@ impl SubscriberParent {
 
 #[async_trait::async_trait]
 impl Actor for SubscriberParent {
-    async fn started(&mut self, ctx: &Context<Self>) -> Result<()> {
+    async fn started(&mut self, ctx: &mut Context<Self>) -> Result<()> {
         println!("Subscriber Parent Started");
         let _ = ctx.address().send(InitializeChildSubscribers);
         Ok(())
@@ -91,7 +91,7 @@ impl Subscriber {
 
 #[async_trait::async_trait]
 impl Actor for Subscriber {
-    async fn started(&mut self, ctx: &Context<Self>) -> Result<()> {
+    async fn started(&mut self, ctx: &mut Context<Self>) -> Result<()> {
         // Send subscription request message to the Message Producer
         println!("Child Subscriber Started - id {:?}", self.id);
         let self_sender = ctx.address().sender();
@@ -129,7 +129,7 @@ impl MessageProducer {
 
 #[async_trait::async_trait]
 impl Actor for MessageProducer {
-    async fn started(&mut self, ctx: &Context<Self>) -> Result<()> {
+    async fn started(&mut self, ctx: &mut Context<Self>) -> Result<()> {
         // Send broadcast message to self every 2 seconds
         println!("Message Producer Started");
         ctx.send_interval(Broadcast, Duration::from_secs(2));

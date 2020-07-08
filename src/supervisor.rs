@@ -2,9 +2,7 @@ use crate::addr::ActorEvent;
 use crate::runtime::spawn;
 use crate::{Actor, Addr, Context};
 use anyhow::Result;
-use futures::lock::Mutex;
 use futures::StreamExt;
-use std::sync::Arc;
 
 /// Actor supervisor
 ///
@@ -77,7 +75,7 @@ impl Supervisor {
         A: Actor,
         F: Fn() -> A + Send + 'static,
     {
-        let (ctx, mut rx, tx) = Context::new(None);
+        let (mut ctx, mut rx, tx) = Context::new(None);
         let addr = Addr {
             actor_id: ctx.actor_id(),
             tx,
@@ -85,25 +83,30 @@ impl Supervisor {
         };
 
         // Create the actor
-        let mut actor = Arc::new(Mutex::new(f()));
+        let mut actor = f();
 
         // Call started
-        actor.lock().await.started(&ctx).await?;
+        actor.started(&mut ctx).await?;
 
         spawn({
             async move {
                 loop {
                     while let Some(event) = rx.next().await {
                         match event {
-                            ActorEvent::Exec(f) => f(actor.clone(), ctx.clone()).await,
+                            ActorEvent::Exec(f) => f(&mut actor, &mut ctx).await,
                             ActorEvent::Stop(_err) => break,
+                            ActorEvent::RemoveStream(id) => {
+                                if ctx.streams.contains(id) {
+                                    ctx.streams.remove(id);
+                                }
+                            }
                         }
                     }
 
-                    actor.lock().await.stopped(&ctx).await;
+                    actor.stopped(&mut ctx).await;
 
-                    actor = Arc::new(Mutex::new(f()));
-                    actor.lock().await.started(&ctx).await.ok();
+                    actor = f();
+                    actor.started(&mut ctx).await.ok();
                 }
             }
         });

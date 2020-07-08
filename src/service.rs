@@ -64,11 +64,13 @@ pub trait Service: Actor + Default {
                 let (ctx, rx, tx) = Context::new(Some(rx_exit));
                 registry.insert(TypeId::of::<Self>(), Box::new(ctx.address()));
                 drop(registry);
-                start_actor(ctx.clone(), rx, tx_exit, Self::default()).await?;
+                let actor_id = ctx.actor_id();
+                let rx_exit = ctx.rx_exit.clone();
+                start_actor(ctx, rx, tx_exit, Self::default()).await?;
                 Ok(Addr {
-                    actor_id: ctx.actor_id(),
+                    actor_id,
                     tx,
-                    rx_exit: ctx.rx_exit.clone(),
+                    rx_exit,
                 })
             }
         }
@@ -99,11 +101,13 @@ pub trait LocalService: Actor + Default {
                     let (tx_exit, rx_exit) = oneshot::channel();
                     let rx_exit = rx_exit.shared();
                     let (ctx, rx, tx) = Context::new(Some(rx_exit));
-                    start_actor(ctx.clone(), rx, tx_exit, Self::default()).await?;
+                    let actor_id = ctx.actor_id();
+                    let rx_exit = ctx.rx_exit.clone();
+                    start_actor(ctx, rx, tx_exit, Self::default()).await?;
                     Addr {
-                        actor_id: ctx.actor_id(),
+                        actor_id,
                         tx,
-                        rx_exit: ctx.rx_exit.clone(),
+                        rx_exit,
                     }
                 };
                 LOCAL_REGISTRY.with(|registry| {

@@ -8,7 +8,7 @@ struct MyActor;
 
 #[async_trait::async_trait]
 impl Actor for MyActor {
-    async fn started(&mut self, ctx: &Context<Self>) -> Result<()> {
+    async fn started(&mut self, ctx: &mut Context<Self>) -> Result<()> {
         // Send the Die message 3 seconds later
         ctx.send_later(Die, Duration::from_secs(3));
         Ok(())

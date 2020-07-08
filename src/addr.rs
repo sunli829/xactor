@@ -1,20 +1,20 @@
 use crate::{Actor, Caller, Context, Error, Handler, Message, Result, Sender};
 use futures::channel::{mpsc, oneshot};
 use futures::future::Shared;
-use futures::lock::Mutex;
 use futures::Future;
 use std::hash::{Hash, Hasher};
 use std::pin::Pin;
 use std::sync::Arc;
 
-type ExecFuture = Pin<Box<dyn Future<Output = ()> + Send + 'static>>;
+type ExecFuture<'a> = Pin<Box<dyn Future<Output = ()> + Send + 'a>>;
 
 pub(crate) type ExecFn<A> =
-    Box<dyn FnOnce(Arc<Mutex<A>>, Arc<Context<A>>) -> ExecFuture + Send + 'static>;
+    Box<dyn for<'a> FnOnce(&'a mut A, &'a mut Context<A>) -> ExecFuture<'a> + Send + 'static>;
 
 pub(crate) enum ActorEvent<A> {
     Exec(ExecFn<A>),
     Stop(Option<Error>),
+    RemoveStream(usize),
 }
 
 /// The address of an actor.
@@ -70,8 +70,7 @@ impl<A: Actor> Addr<A> {
         mpsc::UnboundedSender::clone(&*self.tx).start_send(ActorEvent::Exec(Box::new(
             move |actor, ctx| {
                 Box::pin(async move {
-                    let mut actor = actor.lock().await;
-                    let res = Handler::handle(&mut *actor, &ctx, msg).await;
+                    let res = Handler::handle(actor, ctx, msg).await;
                     let _ = tx.send(res);
                 })
             },
@@ -88,8 +87,7 @@ impl<A: Actor> Addr<A> {
         mpsc::UnboundedSender::clone(&*self.tx).start_send(ActorEvent::Exec(Box::new(
             move |actor, ctx| {
                 Box::pin(async move {
-                    let mut actor = actor.lock().await;
-                    Handler::handle(&mut *actor, &ctx, msg).await;
+                    Handler::handle(actor, ctx, msg).await;
                 })
             },
         )))?;
