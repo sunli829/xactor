@@ -33,7 +33,7 @@ use std::hash::BuildHasherDefault;
 ///
 /// #[async_trait::async_trait]
 /// impl Handler<AddMsg> for MyService {
-///     async fn handle(&mut self, ctx: &Context<Self>, msg: AddMsg) -> i32 {
+///     async fn handle(&mut self, ctx: &mut Context<Self>, msg: AddMsg) -> i32 {
 ///         self.0 += msg.0;
 ///         self.0
 ///     }

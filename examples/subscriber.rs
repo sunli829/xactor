@@ -43,7 +43,7 @@ struct InitializeChildSubscribers;
 
 #[async_trait::async_trait]
 impl Handler<InitializeChildSubscribers> for SubscriberParent {
-    async fn handle(&mut self, _ctx: &Context<Self>, _msg: InitializeChildSubscribers) {
+    async fn handle(&mut self, _ctx: &mut Context<Self>, _msg: InitializeChildSubscribers) {
         let message_producer_addr = self.message_producer.clone();
         let dummy_ids: Vec<i32> = vec![1, 2, 3, 4, 5];
         let children_unstarted_actors_vec = dummy_ids.into_iter().map(move |id| {
@@ -68,7 +68,7 @@ struct ClearChildSubscribers;
 
 #[async_trait::async_trait]
 impl Handler<ClearChildSubscribers> for SubscriberParent {
-    async fn handle(&mut self, _ctx: &Context<Self>, _msg: ClearChildSubscribers) {
+    async fn handle(&mut self, _ctx: &mut Context<Self>, _msg: ClearChildSubscribers) {
         self.children_subscribers = Vec::new();
     }
 }
@@ -104,7 +104,7 @@ impl Actor for Subscriber {
 
 #[async_trait::async_trait]
 impl Handler<RandomMessage> for Subscriber {
-    async fn handle(&mut self, _ctx: &Context<Self>, msg: RandomMessage) {
+    async fn handle(&mut self, _ctx: &mut Context<Self>, msg: RandomMessage) {
         // We just print out the random id, along with the actor's unique id
         println!(
             "Child Subscriber (id: {:?}) Handling RandomMessage body: {:?}",
@@ -152,7 +152,7 @@ struct RandomMessage(i32);
 
 #[async_trait::async_trait]
 impl Handler<Broadcast> for MessageProducer {
-    async fn handle(&mut self, _ctx: &Context<Self>, _msg: Broadcast) {
+    async fn handle(&mut self, _ctx: &mut Context<Self>, _msg: Broadcast) {
         // Generate random number and broadcast that message to all subscribers
         println!("Broadcasting");
         // To avoid bringing in rand package for the sake of this example, we are hardcoding the "random" number
@@ -168,7 +168,7 @@ impl Handler<Broadcast> for MessageProducer {
 
 #[async_trait::async_trait]
 impl Handler<SubscribeToProducer> for MessageProducer {
-    async fn handle(&mut self, _ctx: &Context<Self>, msg: SubscribeToProducer) {
+    async fn handle(&mut self, _ctx: &mut Context<Self>, msg: SubscribeToProducer) {
         println!("Recieved Subscription Request");
         self.subscribers.push(msg.sender);
     }

@@ -88,22 +88,22 @@ impl<A> Context<A> {
     ///
     /// #[async_trait::async_trait]
     /// impl StreamHandler<i32> for MyActor {
-    ///     async fn handle(&mut self, _ctx: &Context<Self>, msg: i32) {
+    ///     async fn handle(&mut self, _ctx: &mut Context<Self>, msg: i32) {
     ///         self.0 += msg;
     ///     }
     ///
-    ///     async fn started(&mut self, _ctx: &Context<Self>) {
+    ///     async fn started(&mut self, _ctx: &mut Context<Self>) {
     ///         println!("stream started");
     ///     }
     ///
-    ///     async fn finished(&mut self, _ctx: &Context<Self>) {
+    ///     async fn finished(&mut self, _ctx: &mut Context<Self>) {
     ///         println!("stream finished");
     ///     }
     /// }
     ///
     /// #[async_trait::async_trait]
     /// impl Handler<GetSum> for MyActor {
-    ///     async fn handle(&mut self, _ctx: &Context<Self>, _msg: GetSum) -> i32 {
+    ///     async fn handle(&mut self, _ctx: &mut Context<Self>, _msg: GetSum) -> i32 {
     ///         self.0
     ///     }
     /// }

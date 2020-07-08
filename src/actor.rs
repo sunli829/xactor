@@ -19,7 +19,7 @@ pub trait Message: 'static + Send {
 #[async_trait::async_trait]
 pub trait Handler<T: Message>: Actor {
     /// Method is called for every message received by this Actor.
-    async fn handle(&mut self, ctx: &Context<Self>, msg: T) -> T::Result;
+    async fn handle(&mut self, ctx: &mut Context<Self>, msg: T) -> T::Result;
 }
 
 /// Describes how to handle messages of a specific type.
@@ -30,15 +30,15 @@ pub trait Handler<T: Message>: Actor {
 #[allow(unused_variables)]
 pub trait StreamHandler<T: 'static>: Actor {
     /// Method is called for every message received by this Actor.
-    async fn handle(&mut self, ctx: &Context<Self>, msg: T);
+    async fn handle(&mut self, ctx: &mut Context<Self>, msg: T);
 
     /// Method is called when stream get polled first time.
-    async fn started(&mut self, ctx: &Context<Self>) {}
+    async fn started(&mut self, ctx: &mut Context<Self>) {}
 
     /// Method is called when stream finishes.
     ///
     /// By default this method stops actor execution.
-    async fn finished(&mut self, ctx: &Context<Self>) {
+    async fn finished(&mut self, ctx: &mut Context<Self>) {
         ctx.stop(None);
     }
 }
@@ -89,7 +89,7 @@ pub trait Actor: Sized + Send + 'static {
     ///
     /// #[async_trait::async_trait]
     /// impl Handler<MyMsg> for MyActor {
-    ///     async fn handle(&mut self, _ctx: &Context<Self>, msg: MyMsg) -> i32 {
+    ///     async fn handle(&mut self, _ctx: &mut Context<Self>, msg: MyMsg) -> i32 {
     ///         msg.0 * msg.0
     ///     }
     /// }
