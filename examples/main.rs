@@ -17,7 +17,7 @@ impl Actor for MyActor {
 
 #[async_trait::async_trait]
 impl Handler<Die> for MyActor {
-    async fn handle(&mut self, ctx: &Context<Self>, _msg: Die) {
+    async fn handle(&mut self, ctx: &mut Context<Self>, _msg: Die) {
         // Stop the actor without error
         ctx.stop(None);
     }

@@ -56,14 +56,14 @@ impl<T: Message<Result = ()> + Clone> Message for Publish<T> {
 ///
 /// #[async_trait::async_trait]
 /// impl Handler<MyMsg> for MyActor {
-///     async fn handle(&mut self, _ctx: &Context<Self>, msg: MyMsg) {
+///     async fn handle(&mut self, _ctx: &mut Context<Self>, msg: MyMsg) {
 ///         self.0 += msg.0;
 ///     }
 /// }
 ///
 /// #[async_trait::async_trait]
 /// impl Handler<GetValue> for MyActor {
-///     async fn handle(&mut self, _ctx: &Context<Self>, _msg: GetValue) -> String {
+///     async fn handle(&mut self, _ctx: &mut Context<Self>, _msg: GetValue) -> String {
 ///         self.0.clone()
 ///     }
 /// }
@@ -103,21 +103,21 @@ impl<T: Message<Result = ()>> Service for Broker<T> {}
 
 #[async_trait::async_trait]
 impl<T: Message<Result = ()>> Handler<Subscribe<T>> for Broker<T> {
-    async fn handle(&mut self, _ctx: &Context<Self>, msg: Subscribe<T>) {
+    async fn handle(&mut self, _ctx: &mut Context<Self>, msg: Subscribe<T>) {
         self.subscribes.insert(msg.id, Box::new(msg.sender));
     }
 }
 
 #[async_trait::async_trait]
 impl<T: Message<Result = ()>> Handler<Unsubscribe> for Broker<T> {
-    async fn handle(&mut self, _ctx: &Context<Self>, msg: Unsubscribe) {
+    async fn handle(&mut self, _ctx: &mut Context<Self>, msg: Unsubscribe) {
         self.subscribes.remove(&msg.id);
     }
 }
 
 #[async_trait::async_trait]
 impl<T: Message<Result = ()> + Clone> Handler<Publish<T>> for Broker<T> {
-    async fn handle(&mut self, _ctx: &Context<Self>, msg: Publish<T>) {
+    async fn handle(&mut self, _ctx: &mut Context<Self>, msg: Publish<T>) {
         for sender in self.subscribes.values_mut() {
             if let Some(sender) = sender.downcast_mut::<Sender<T>>() {
                 sender.send(msg.0.clone()).ok();

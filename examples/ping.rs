@@ -15,7 +15,7 @@ impl Actor for MyActor {}
 /// Handler for `Ping` message
 #[async_trait::async_trait]
 impl Handler<Ping> for MyActor {
-    async fn handle(&mut self, _ctx: &Context<Self>, msg: Ping) -> usize {
+    async fn handle(&mut self, _ctx: &mut Context<Self>, msg: Ping) -> usize {
         self.count += msg.0;
         self.count
     }
