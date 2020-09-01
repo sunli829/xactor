@@ -47,7 +47,7 @@ impl Actor for MyActor {}
 
 #[async_trait::async_trait]
 impl Handler<ToUppercase> for MyActor {
-    async fn handle(&mut self, _ctx: &Context<Self>, msg: ToUppercase) -> String {
+    async fn handle(&mut self, _ctx: &mut Context<Self>, msg: ToUppercase) -> String {
         msg.0.to_uppercase()
     }
 }
@@ -55,7 +55,7 @@ impl Handler<ToUppercase> for MyActor {
 #[xactor::main]
 async fn main() -> Result<()> {
     // Start actor and get its address
-    let mut addr = MyActor.start().await;
+    let mut addr = MyActor.start().await?;
 
     // Send message `ToUppercase` to actor via addr
     let res = addr.call(ToUppercase("lowercase".to_string())).await?;
