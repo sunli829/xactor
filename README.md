@@ -75,20 +75,19 @@ async fn main() -> Result<()> {
 
 ## Installation
 
-Xactor require `async-trait` on useland
+Xactor requires [async-trait](https://github.com/dtolnay/async-trait) on userland.
 
-With [cargo add][cargo-add] installed run:
+With [cargo add][cargo-add] installed, run:
 
 ```sh
 $ cargo add xactor
 $ cargo add async-trait
 ```
 
-We also provide a set of "tokio-runtime" features instead of async-std. 
-to use it you need activate feautre: `runtime-tokio` and desable default.
+We also provide the [tokio](https://tokio.rs/) runtime instead of [async-std](https://async.rs/). To use it, you need to activate `runtime-tokio` and disable default features.
 
-You can edit your `Cargo.toml` has following:
-```
+You can edit your `Cargo.toml` as follows:
+```toml
 xactor = { version = "x.x.x", features = ["runtime-tokio"], default-features = false }
 ```
 
