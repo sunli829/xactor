@@ -90,12 +90,13 @@ impl Supervisor {
 
         spawn({
             async move {
-                loop {
-                    while let Some(event) = rx.next().await {
-                        match event {
-                            ActorEvent::Exec(f) => f(&mut actor, &mut ctx).await,
-                            ActorEvent::Stop(_err) => break,
-                            ActorEvent::RemoveStream(id) => {
+                'restart_loop: loop {
+                    'event_loop: loop {
+                        match rx.next().await {
+                            None => break 'restart_loop,
+                            Some(ActorEvent::Stop(_err)) => break 'event_loop,
+                            Some(ActorEvent::Exec(f)) => f(&mut actor, &mut ctx).await,
+                            Some(ActorEvent::RemoveStream(id)) => {
                                 if ctx.streams.contains(id) {
                                     ctx.streams.remove(id);
                                 }
@@ -104,10 +105,11 @@ impl Supervisor {
                     }
 
                     actor.stopped(&mut ctx).await;
-
                     actor = f();
                     actor.started(&mut ctx).await.ok();
                 }
+
+                actor.stopped(&mut ctx).await;
             }
         });
 
