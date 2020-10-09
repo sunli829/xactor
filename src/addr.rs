@@ -4,7 +4,7 @@ use futures::future::Shared;
 use futures::Future;
 use std::hash::{Hash, Hasher};
 use std::pin::Pin;
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 
 type ExecFuture<'a> = Pin<Box<dyn Future<Output = ()> + Send + 'a>>;
 
@@ -32,6 +32,16 @@ impl<A> Clone for Addr<A> {
         Self {
             actor_id: self.actor_id,
             tx: self.tx.clone(),
+            rx_exit: self.rx_exit.clone(),
+        }
+    }
+}
+
+impl<A> Addr<A> {
+    pub fn downgrade(&self) -> WeakAddr<A> {
+        WeakAddr {
+            actor_id: self.actor_id,
+            tx: Arc::downgrade(&self.tx),
             rx_exit: self.rx_exit.clone(),
         }
     }
@@ -99,11 +109,32 @@ impl<A: Actor> Addr<A> {
     where
         A: Handler<T>,
     {
-        let addr = self.clone();
-        Caller(Box::new(move |msg| {
-            let addr = addr.clone();
-            Box::pin(async move { addr.call(msg).await })
-        }))
+        let weak_tx = Arc::downgrade(&self.tx);
+
+        Caller {
+            actor_id: self.actor_id.clone(),
+            caller_fn: Box::new(move |msg| {
+                let weak_tx_option = weak_tx.upgrade();
+                Box::pin(async move {
+                    match weak_tx_option {
+                        Some(tx) => {
+                            let (oneshot_tx, oneshot_rx) = oneshot::channel();
+
+                            mpsc::UnboundedSender::clone(&tx).start_send(ActorEvent::Exec(
+                                Box::new(move |actor, ctx| {
+                                    Box::pin(async move {
+                                        let res = Handler::handle(&mut *actor, ctx, msg).await;
+                                        let _ = oneshot_tx.send(res);
+                                    })
+                                }),
+                            ))?;
+                            Ok(oneshot_rx.await?)
+                        }
+                        None => Err(anyhow::anyhow!("Actor Dropped")),
+                    }
+                })
+            }),
+        }
     }
 
     /// Create a `Sender<T>` for a specific message type
@@ -111,11 +142,23 @@ impl<A: Actor> Addr<A> {
     where
         A: Handler<T>,
     {
-        let addr = self.clone();
-        Sender(Box::new(move |msg| {
-            let addr = addr.clone();
-            addr.send(msg)
-        }))
+        let weak_tx = Arc::downgrade(&self.tx);
+        Sender {
+            actor_id: self.actor_id.clone(),
+            sender_fn: Box::new(move |msg| match weak_tx.upgrade() {
+                Some(tx) => {
+                    mpsc::UnboundedSender::clone(&tx).start_send(ActorEvent::Exec(Box::new(
+                        move |actor, ctx| {
+                            Box::pin(async move {
+                                Handler::handle(&mut *actor, ctx, msg).await;
+                            })
+                        },
+                    )))?;
+                    Ok(())
+                }
+                None => Ok(()),
+            }),
+        }
     }
 
     /// Wait for an actor to finish, and if the actor has finished, the function returns immediately.
@@ -125,5 +168,53 @@ impl<A: Actor> Addr<A> {
         } else {
             futures::future::pending::<()>().await;
         }
+    }
+}
+
+pub struct WeakAddr<A> {
+    pub(crate) actor_id: u64,
+    pub(crate) tx: Weak<mpsc::UnboundedSender<ActorEvent<A>>>,
+    pub(crate) rx_exit: Option<Shared<oneshot::Receiver<()>>>,
+}
+
+impl<A> PartialEq for WeakAddr<A> {
+    fn eq(&self, other: &Self) -> bool {
+        self.actor_id == other.actor_id
+    }
+}
+
+impl<A> Hash for WeakAddr<A> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.actor_id.hash(state)
+    }
+}
+
+impl<A> WeakAddr<A> {
+    pub fn upgrade(&self) -> Option<Addr<A>> {
+        match self.tx.upgrade() {
+            Some(tx) => Some(Addr {
+                actor_id: self.actor_id,
+                tx,
+                rx_exit: self.rx_exit.clone(),
+            }),
+            None => None,
+        }
+    }
+}
+
+impl<A> Clone for WeakAddr<A> {
+    fn clone(&self) -> Self {
+        Self {
+            actor_id: self.actor_id,
+            tx: self.tx.clone(),
+            rx_exit: self.rx_exit.clone(),
+        }
+    }
+}
+
+impl<A: Actor> WeakAddr<A> {
+    /// Returns the id of the actor.
+    pub fn actor_id(&self) -> u64 {
+        self.actor_id
     }
 }
