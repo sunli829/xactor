@@ -78,7 +78,7 @@ pub type Result<T> = anyhow::Result<T>;
 pub type Error = anyhow::Error;
 
 pub use actor::{Actor, Handler, Message, StreamHandler};
-pub use addr::Addr;
+pub use addr::{Addr, WeakAddr};
 pub use broker::Broker;
 pub use caller::{Caller, Sender};
 pub use context::Context;

@@ -53,6 +53,7 @@ impl<A> Context<A> {
     pub fn address(&self) -> Addr<A> {
         Addr {
             actor_id: self.actor_id,
+            // This getting unwrap panics
             tx: self.tx.upgrade().unwrap(),
             rx_exit: self.rx_exit.clone(),
         }
@@ -191,15 +192,18 @@ impl<A> Context<A> {
     }
 
     /// Sends the message `msg` to self after a specified period of time.
+    ///
+    /// We use `Sender` instead of `Addr` so that the interval doesn't keep reference to address and prevent the actor from being dropped and stopped
+
     pub fn send_later<T>(&self, msg: T, after: Duration)
     where
         A: Handler<T>,
         T: Message<Result = ()>,
     {
-        let addr = self.address();
+        let sender = self.address().sender();
         spawn(async move {
             sleep(after).await;
-            addr.send(msg).ok();
+            sender.send(msg).ok();
         });
     }
 
@@ -211,11 +215,12 @@ impl<A> Context<A> {
         F: Fn() -> T + Sync + Send + 'static,
         T: Message<Result = ()>,
     {
-        let addr = self.address();
+        let sender = self.address().sender();
+
         spawn(async move {
             loop {
                 sleep(dur).await;
-                if addr.send(f()).is_err() {
+                if sender.send(f()).is_err() {
                     break;
                 }
             }
@@ -237,11 +242,11 @@ impl<A> Context<A> {
         A: Handler<T>,
     {
         let broker = Broker::<T>::from_registry().await?;
-        let addr = self.address();
+        let sender = self.address().sender();
         broker
             .send(Subscribe {
                 id: self.actor_id,
-                sender: addr.sender::<T>(),
+                sender,
             })
             .ok();
         Ok(())
