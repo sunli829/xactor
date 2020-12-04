@@ -1,4 +1,4 @@
-use crate::{Actor, Caller, Context, Error, Handler, Message, Result, Sender};
+use crate::{Actor, ActorId, Caller, Context, Error, Handler, Message, Result, Sender};
 use futures::channel::{mpsc, oneshot};
 use futures::future::Shared;
 use futures::Future;
@@ -22,7 +22,7 @@ pub(crate) enum ActorEvent<A> {
 /// When all references to `Addr<A>` are dropped, the actor ends.
 /// You can use `Clone` trait to create multiple copies of `Addr<A>`.
 pub struct Addr<A> {
-    pub(crate) actor_id: u64,
+    pub(crate) actor_id: ActorId,
     pub(crate) tx: Arc<mpsc::UnboundedSender<ActorEvent<A>>>,
     pub(crate) rx_exit: Option<Shared<oneshot::Receiver<()>>>,
 }
@@ -61,7 +61,7 @@ impl<A> Hash for Addr<A> {
 
 impl<A: Actor> Addr<A> {
     /// Returns the id of the actor.
-    pub fn actor_id(&self) -> u64 {
+    pub fn actor_id(&self) -> ActorId {
         self.actor_id
     }
 
@@ -172,7 +172,7 @@ impl<A: Actor> Addr<A> {
 }
 
 pub struct WeakAddr<A> {
-    pub(crate) actor_id: u64,
+    pub(crate) actor_id: ActorId,
     pub(crate) tx: Weak<mpsc::UnboundedSender<ActorEvent<A>>>,
     pub(crate) rx_exit: Option<Shared<oneshot::Receiver<()>>>,
 }
@@ -214,7 +214,7 @@ impl<A> Clone for WeakAddr<A> {
 
 impl<A: Actor> WeakAddr<A> {
     /// Returns the id of the actor.
-    pub fn actor_id(&self) -> u64 {
+    pub fn actor_id(&self) -> ActorId {
         self.actor_id
     }
 }

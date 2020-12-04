@@ -77,6 +77,8 @@ pub type Result<T> = anyhow::Result<T>;
 /// Alias of anyhow::Error
 pub type Error = anyhow::Error;
 
+pub type ActorId = u64;
+
 pub use actor::{Actor, Handler, Message, StreamHandler};
 pub use addr::{Addr, WeakAddr};
 pub use broker::Broker;
