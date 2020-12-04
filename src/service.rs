@@ -1,10 +1,8 @@
-use crate::actor::start_actor;
-use crate::{Actor, Addr, Context};
+use crate::actor::ActorManager;
+use crate::{Actor, Addr};
 use anyhow::Result;
 use fnv::FnvHasher;
-use futures::channel::oneshot;
 use futures::lock::Mutex;
-use futures::FutureExt;
 use once_cell::sync::OnceCell;
 use std::any::{Any, TypeId};
 use std::cell::RefCell;
@@ -59,19 +57,12 @@ pub trait Service: Actor + Default {
         match registry.get_mut(&TypeId::of::<Self>()) {
             Some(addr) => Ok(addr.downcast_ref::<Addr<Self>>().unwrap().clone()),
             None => {
-                let (tx_exit, rx_exit) = oneshot::channel();
-                let rx_exit = rx_exit.shared();
-                let (ctx, rx, tx) = Context::new(Some(rx_exit));
-                registry.insert(TypeId::of::<Self>(), Box::new(ctx.address()));
+                let actor_manager = ActorManager::new();
+
+                registry.insert(TypeId::of::<Self>(), Box::new(actor_manager.address()));
                 drop(registry);
-                let actor_id = ctx.actor_id();
-                let rx_exit = ctx.rx_exit.clone();
-                start_actor(ctx, rx, tx_exit, Self::default()).await?;
-                Ok(Addr {
-                    actor_id,
-                    tx,
-                    rx_exit,
-                })
+
+                actor_manager.start_actor(Self::default()).await
             }
         }
     }
@@ -97,19 +88,7 @@ pub trait LocalService: Actor + Default {
         match res {
             Some(addr) => Ok(addr),
             None => {
-                let addr = {
-                    let (tx_exit, rx_exit) = oneshot::channel();
-                    let rx_exit = rx_exit.shared();
-                    let (ctx, rx, tx) = Context::new(Some(rx_exit));
-                    let actor_id = ctx.actor_id();
-                    let rx_exit = ctx.rx_exit.clone();
-                    start_actor(ctx, rx, tx_exit, Self::default()).await?;
-                    Addr {
-                        actor_id,
-                        tx,
-                        rx_exit,
-                    }
-                };
+                let addr = ActorManager::new().start_actor(Self::default()).await?;
                 LOCAL_REGISTRY.with(|registry| {
                     registry
                         .borrow_mut()
