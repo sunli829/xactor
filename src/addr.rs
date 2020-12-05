@@ -4,7 +4,7 @@ use futures::future::Shared;
 use futures::Future;
 use std::hash::{Hash, Hasher};
 use std::pin::Pin;
-use std::sync::{Arc, Weak};
+use std::sync::{Arc, Mutex, Weak};
 
 type ExecFuture<'a> = Pin<Box<dyn Future<Output = ()> + Send + 'a>>;
 
@@ -113,7 +113,7 @@ impl<A: Actor> Addr<A> {
 
         Caller {
             actor_id: self.actor_id.clone(),
-            caller_fn: Box::new(move |msg| {
+            caller_fn: Mutex::new(Box::new(move |msg| {
                 let weak_tx_option = weak_tx.upgrade();
                 Box::pin(async move {
                     match weak_tx_option {
@@ -133,7 +133,7 @@ impl<A: Actor> Addr<A> {
                         None => Err(anyhow::anyhow!("Actor Dropped")),
                     }
                 })
-            }),
+            })),
         }
     }
 
