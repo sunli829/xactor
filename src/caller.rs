@@ -2,12 +2,12 @@ use crate::{Message, Result};
 use std::future::Future;
 use std::hash::{Hash, Hasher};
 use std::pin::Pin;
+use std::sync::Mutex;
 
-pub(crate) type CallerFn<T> = Box<
-    dyn Fn(T) -> Pin<Box<dyn Future<Output = Result<<T as Message>::Result>> + Send + 'static>>
-        + Send
-        + 'static,
->;
+pub(crate) type CallerFuture<T> =
+    Pin<Box<dyn Future<Output = Result<<T as Message>::Result>> + Send + 'static>>;
+
+pub(crate) type CallerFn<T> = Box<dyn Fn(T) -> CallerFuture<T> + Send + 'static>;
 
 pub(crate) type SenderFn<T> = Box<dyn Fn(T) -> Result<()> + 'static + Send>;
 
@@ -17,12 +17,12 @@ pub(crate) type SenderFn<T> = Box<dyn Fn(T) -> Result<()> + 'static + Send>;
 
 pub struct Caller<T: Message> {
     pub actor_id: u64,
-    pub(crate) caller_fn: CallerFn<T>,
+    pub(crate) caller_fn: Mutex<CallerFn<T>>,
 }
 
 impl<T: Message> Caller<T> {
-    pub async fn call(&self, msg: T) -> Result<T::Result> {
-        (self.caller_fn)(msg).await
+    pub fn call(&self, msg: T) -> CallerFuture<T> {
+        (self.caller_fn.lock().unwrap())(msg)
     }
 }
 
