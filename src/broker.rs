@@ -5,8 +5,10 @@ use std::collections::HashMap;
 use std::hash::BuildHasherDefault;
 use std::marker::PhantomData;
 
+type SubscriptionId = u64;
+
 pub(crate) struct Subscribe<T: Message<Result = ()>> {
-    pub(crate) id: u64,
+    pub(crate) id: SubscriptionId,
     pub(crate) sender: Sender<T>,
 }
 
@@ -15,7 +17,7 @@ impl<T: Message<Result = ()>> Message for Subscribe<T> {
 }
 
 pub(crate) struct Unsubscribe {
-    pub(crate) id: u64,
+    pub(crate) id: SubscriptionId,
 }
 
 impl Message for Unsubscribe {
@@ -84,7 +86,7 @@ impl<T: Message<Result = ()> + Clone> Message for Publish<T> {
 /// }
 /// ```
 pub struct Broker<T: Message<Result = ()>> {
-    subscribes: HashMap<u64, Box<dyn Any + Send>, BuildHasherDefault<FnvHasher>>,
+    subscribes: HashMap<SubscriptionId, Box<dyn Any + Send>, BuildHasherDefault<FnvHasher>>,
     mark: PhantomData<T>,
 }
 

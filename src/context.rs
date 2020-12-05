@@ -1,7 +1,7 @@
 use crate::addr::ActorEvent;
 use crate::broker::{Subscribe, Unsubscribe};
 use crate::runtime::{sleep, spawn};
-use crate::{Addr, Broker, Error, Handler, Message, Result, Service, StreamHandler};
+use crate::{ActorId, Addr, Broker, Error, Handler, Message, Result, Service, StreamHandler};
 use futures::channel::{mpsc, oneshot};
 use futures::future::{AbortHandle, Abortable, Shared};
 use futures::{Stream, StreamExt};
@@ -13,7 +13,7 @@ use std::time::Duration;
 
 ///An actor execution context.
 pub struct Context<A> {
-    actor_id: u64,
+    actor_id: ActorId,
     tx: Weak<mpsc::UnboundedSender<ActorEvent<A>>>,
     pub(crate) rx_exit: Option<Shared<oneshot::Receiver<()>>>,
     pub(crate) streams: Slab<AbortHandle>,
@@ -60,7 +60,7 @@ impl<A> Context<A> {
     }
 
     /// Returns the id of the actor.
-    pub fn actor_id(&self) -> u64 {
+    pub fn actor_id(&self) -> ActorId {
         self.actor_id
     }
 
