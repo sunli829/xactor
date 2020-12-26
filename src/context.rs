@@ -17,6 +17,7 @@ pub struct Context<A> {
     tx: Weak<mpsc::UnboundedSender<ActorEvent<A>>>,
     pub(crate) rx_exit: Option<Shared<oneshot::Receiver<()>>>,
     pub(crate) streams: Slab<AbortHandle>,
+    pub(crate) intervals: Slab<AbortHandle>,
 }
 
 impl<A> Context<A> {
@@ -43,6 +44,7 @@ impl<A> Context<A> {
                 tx: weak_tx,
                 rx_exit,
                 streams: Default::default(),
+                intervals: Default::default(),
             },
             rx,
             tx,
@@ -70,6 +72,18 @@ impl<A> Context<A> {
             mpsc::UnboundedSender::clone(&*tx)
                 .start_send(ActorEvent::Stop(err))
                 .ok();
+        }
+    }
+
+    pub fn abort_intervals(&mut self) {
+        for handle in self.intervals.drain() {
+            handle.abort()
+        }
+    }
+
+    pub fn abort_streams(&mut self) {
+        for handle in self.streams.drain() {
+            handle.abort();
         }
     }
 
@@ -195,21 +209,28 @@ impl<A> Context<A> {
     ///
     /// We use `Sender` instead of `Addr` so that the interval doesn't keep reference to address and prevent the actor from being dropped and stopped
 
-    pub fn send_later<T>(&self, msg: T, after: Duration)
+    pub fn send_later<T>(&mut self, msg: T, after: Duration)
     where
         A: Handler<T>,
         T: Message<Result = ()>,
     {
         let sender = self.address().sender();
-        spawn(async move {
-            sleep(after).await;
-            sender.send(msg).ok();
-        });
+        let entry = self.intervals.vacant_entry();
+        let (handle, registration) = futures::future::AbortHandle::new_pair();
+        entry.insert(handle);
+
+        spawn(Abortable::new(
+            async move {
+                sleep(after).await;
+                sender.send(msg).ok();
+            },
+            registration,
+        ));
     }
 
     /// Sends the message  to self, at a specified fixed interval.
     /// The message is created each time using a closure `f`.
-    pub fn send_interval_with<T, F>(&self, f: F, dur: Duration)
+    pub fn send_interval_with<T, F>(&mut self, f: F, dur: Duration)
     where
         A: Handler<T>,
         F: Fn() -> T + Sync + Send + 'static,
@@ -217,18 +238,25 @@ impl<A> Context<A> {
     {
         let sender = self.address().sender();
 
-        spawn(async move {
-            loop {
-                sleep(dur).await;
-                if sender.send(f()).is_err() {
-                    break;
+        let entry = self.intervals.vacant_entry();
+        let (handle, registration) = futures::future::AbortHandle::new_pair();
+        entry.insert(handle);
+
+        spawn(Abortable::new(
+            async move {
+                loop {
+                    sleep(dur).await;
+                    if sender.send(f()).is_err() {
+                        break;
+                    }
                 }
-            }
-        });
+            },
+            registration,
+        ));
     }
 
     /// Sends the message `msg` to self, at a specified fixed interval.
-    pub fn send_interval<T>(&self, msg: T, dur: Duration)
+    pub fn send_interval<T>(&mut self, msg: T, dur: Duration)
     where
         A: Handler<T>,
         T: Message<Result = ()> + Clone + Sync,

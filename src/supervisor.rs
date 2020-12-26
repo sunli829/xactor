@@ -105,11 +105,15 @@ impl Supervisor {
                     }
 
                     actor.stopped(&mut ctx).await;
+                    ctx.abort_streams();
+                    ctx.abort_intervals();
+
                     actor = f();
                     actor.started(&mut ctx).await.ok();
                 }
-
                 actor.stopped(&mut ctx).await;
+                ctx.abort_streams();
+                ctx.abort_intervals();
             }
         });
 

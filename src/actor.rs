@@ -167,9 +167,8 @@ impl<A: Actor> ActorManager<A> {
 
                 actor.stopped(&mut ctx).await;
 
-                for (_, handle) in ctx.streams.iter() {
-                    handle.abort();
-                }
+                ctx.abort_streams();
+                ctx.abort_intervals();
 
                 tx_exit.send(()).ok();
             }
