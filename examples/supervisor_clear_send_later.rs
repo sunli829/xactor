@@ -59,7 +59,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         service_addr.send(Halt).unwrap();
     };
 
-    futures::join!(supervisor_task, send_halt, send_ping);
+    let _ = futures::join!(supervisor_task, send_halt, send_ping);
 
     Ok(())
 }

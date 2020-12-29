@@ -79,7 +79,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         service_addr.send(Halt).unwrap();
     };
 
-    futures::join!(supervisor_task, send_halt);
+    let _ = futures::join!(supervisor_task, send_halt);
     // run this to see that the interval is not properly stopped if the ctx is stopped
     // futures::join!(supervisor_task, send_panic); // there is no panic recovery
 
