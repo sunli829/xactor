@@ -71,6 +71,12 @@ mod runtime;
 mod service;
 mod supervisor;
 
+#[cfg(all(feature = "anyhow", feature = "eyre"))]
+compile_error!(r#"
+    features `xactor/anyhow` and `xactor/eyre` are mutually exclusive.
+    If you are trying to disable anyhow set `default-features = false`.
+"#);
+
 #[cfg(feature="anyhow")]
 pub use anyhow as error;
 
