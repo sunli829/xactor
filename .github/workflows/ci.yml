@@ -14,8 +14,12 @@ jobs:
       - name: Build with async-std
         run: cargo build --all --verbose
       - name: Build with tokio
-        run: cargo build --all --features runtime-tokio --no-default-features --verbose
+        run: cargo build --all --features runtime-tokio anyhow --no-default-features --verbose
+      - name: Build with eyre
+        run: cargo build --all --features runtime-tokio eyre --no-default-features --verbose
       - name: Run tests with async-std
         run: cargo test --all --verbose
       - name: Run tests with tokio
-        run: cargo test --all --verbose --features runtime-tokio --no-default-features --verbose
+        run: cargo test --all --verbose --features runtime-tokio anyhow --no-default-features --verbose
+      - name: Run tests with eyre
+        run: cargo test --all --verbose --features runtime-tokio eyre --no-default-features --verbose
