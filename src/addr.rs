@@ -130,7 +130,7 @@ impl<A: Actor> Addr<A> {
                             ))?;
                             Ok(oneshot_rx.await?)
                         }
-                        None => Err(anyhow::anyhow!("Actor Dropped")),
+                        None => Err(crate::error::anyhow!("Actor Dropped")),
                     }
                 })
             })),
