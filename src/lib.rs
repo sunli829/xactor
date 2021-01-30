@@ -71,11 +71,23 @@ mod runtime;
 mod service;
 mod supervisor;
 
-/// Alias of anyhow::Result
-pub type Result<T> = anyhow::Result<T>;
+#[cfg(all(feature = "anyhow", feature = "eyre"))]
+compile_error!(r#"
+    features `xactor/anyhow` and `xactor/eyre` are mutually exclusive.
+    If you are trying to disable anyhow set `default-features = false`.
+"#);
 
-/// Alias of anyhow::Error
-pub type Error = anyhow::Error;
+#[cfg(feature="anyhow")]
+pub use anyhow as error;
+
+#[cfg(feature="eyre")]
+pub use eyre as error;
+
+/// Alias of error::Result
+pub type Result<T> = error::Result<T>;
+
+/// Alias of error::Error
+pub type Error = error::Error;
 
 pub type ActorId = u64;
 
