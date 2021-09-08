@@ -1,8 +1,8 @@
 use crate::addr::ActorEvent;
+use crate::mailbox::{EventReceiver, EventSender};
 use crate::runtime::spawn;
 use crate::{Addr, Context};
 use crate::error::Result;
-use futures::channel::mpsc::{UnboundedReceiver, UnboundedSender};
 use futures::channel::oneshot;
 use futures::{FutureExt, StreamExt};
 
@@ -58,6 +58,10 @@ pub trait StreamHandler<T: 'static>: Actor {
 #[async_trait::async_trait]
 #[allow(unused_variables)]
 pub trait Actor: Sized + Send + 'static {
+    #[cfg(feature = "generic-mailbox")]
+    /// Defines the types that the actor will use as a message queue. [UnboundedMailbox](crate::mailbox::UnboundedMailbox) is the original behaviour that expands as needed so the sender never blocks.
+    type Mailbox: crate::mailbox::MessageQueue = crate::mailbox::UnboundedMailbox;
+
     /// Called when the actor is first started.
     async fn started(&mut self, ctx: &mut Context<Self>) -> Result<()> {
         Ok(())
@@ -115,8 +119,8 @@ pub trait Actor: Sized + Send + 'static {
 
 pub(crate) struct ActorManager<A: Actor> {
     ctx: Context<A>,
-    tx: std::sync::Arc<UnboundedSender<ActorEvent<A>>>,
-    rx: UnboundedReceiver<ActorEvent<A>>,
+    tx: std::sync::Arc<EventSender<A>>,
+    rx: EventReceiver<A>,
     tx_exit: oneshot::Sender<()>,
 }
 

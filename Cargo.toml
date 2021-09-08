@@ -33,5 +33,5 @@ members = [
 [features]
 runtime-tokio = ["tokio"]
 runtime-async-std = ["async-std"]
-
+generic-mailbox = []
 default = ["runtime-async-std", "anyhow"]

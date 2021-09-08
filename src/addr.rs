@@ -1,7 +1,9 @@
+use crate::mailbox::EventSender;
 use crate::{Actor, ActorId, Caller, Context, Error, Handler, Message, Result, Sender};
-use futures::channel::{mpsc, oneshot};
+use futures::channel::oneshot;
 use futures::future::Shared;
 use futures::Future;
+use futures::Sink;
 use std::hash::{Hash, Hasher};
 use std::pin::Pin;
 use std::sync::{Arc, Mutex, Weak};
@@ -11,7 +13,7 @@ type ExecFuture<'a> = Pin<Box<dyn Future<Output = ()> + Send + 'a>>;
 pub(crate) type ExecFn<A> =
     Box<dyn for<'a> FnOnce(&'a mut A, &'a mut Context<A>) -> ExecFuture<'a> + Send + 'static>;
 
-pub(crate) enum ActorEvent<A> {
+pub(crate) enum ActorEvent<A: Actor> {
     Exec(ExecFn<A>),
     Stop(Option<Error>),
     RemoveStream(usize),
@@ -21,13 +23,13 @@ pub(crate) enum ActorEvent<A> {
 ///
 /// When all references to `Addr<A>` are dropped, the actor ends.
 /// You can use `Clone` trait to create multiple copies of `Addr<A>`.
-pub struct Addr<A> {
+pub struct Addr<A: Actor> {
     pub(crate) actor_id: ActorId,
-    pub(crate) tx: Arc<mpsc::UnboundedSender<ActorEvent<A>>>,
+    pub(crate) tx: Arc<EventSender<A>>,
     pub(crate) rx_exit: Option<Shared<oneshot::Receiver<()>>>,
 }
 
-impl<A> Clone for Addr<A> {
+impl<A: Actor> Clone for Addr<A> {
     fn clone(&self) -> Self {
         Self {
             actor_id: self.actor_id,
@@ -37,7 +39,7 @@ impl<A> Clone for Addr<A> {
     }
 }
 
-impl<A> Addr<A> {
+impl<A: Actor> Addr<A> {
     pub fn downgrade(&self) -> WeakAddr<A> {
         WeakAddr {
             actor_id: self.actor_id,
@@ -47,13 +49,13 @@ impl<A> Addr<A> {
     }
 }
 
-impl<A> PartialEq for Addr<A> {
+impl<A: Actor> PartialEq for Addr<A> {
     fn eq(&self, other: &Self) -> bool {
         self.actor_id == other.actor_id
     }
 }
 
-impl<A> Hash for Addr<A> {
+impl<A: Actor> Hash for Addr<A> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.actor_id.hash(state)
     }
@@ -67,7 +69,7 @@ impl<A: Actor> Addr<A> {
 
     /// Stop the actor.
     pub fn stop(&mut self, err: Option<Error>) -> Result<()> {
-        mpsc::UnboundedSender::clone(&*self.tx).start_send(ActorEvent::Stop(err))?;
+        Pin::new(&mut EventSender::<A>::clone(&*self.tx)).start_send(ActorEvent::Stop(err))?;
         Ok(())
     }
 
@@ -77,14 +79,14 @@ impl<A: Actor> Addr<A> {
         A: Handler<T>,
     {
         let (tx, rx) = oneshot::channel();
-        mpsc::UnboundedSender::clone(&*self.tx).start_send(ActorEvent::Exec(Box::new(
-            move |actor, ctx| {
+        Pin::new(&mut EventSender::<A>::clone(&*self.tx)).start_send(ActorEvent::Exec(
+            Box::new(move |actor, ctx| {
                 Box::pin(async move {
                     let res = Handler::handle(actor, ctx, msg).await;
                     let _ = tx.send(res);
                 })
-            },
-        )))?;
+            }),
+        ))?;
 
         Ok(rx.await?)
     }
@@ -94,13 +96,13 @@ impl<A: Actor> Addr<A> {
     where
         A: Handler<T>,
     {
-        mpsc::UnboundedSender::clone(&*self.tx).start_send(ActorEvent::Exec(Box::new(
-            move |actor, ctx| {
+        Pin::new(&mut EventSender::<A>::clone(&*self.tx)).start_send(ActorEvent::Exec(
+            Box::new(move |actor, ctx| {
                 Box::pin(async move {
                     Handler::handle(actor, ctx, msg).await;
                 })
-            },
-        )))?;
+            }),
+        ))?;
         Ok(())
     }
 
@@ -120,14 +122,14 @@ impl<A: Actor> Addr<A> {
                         Some(tx) => {
                             let (oneshot_tx, oneshot_rx) = oneshot::channel();
 
-                            mpsc::UnboundedSender::clone(&tx).start_send(ActorEvent::Exec(
-                                Box::new(move |actor, ctx| {
+                            Pin::new(&mut EventSender::<A>::clone(&tx)).start_send(
+                                ActorEvent::Exec(Box::new(move |actor, ctx| {
                                     Box::pin(async move {
                                         let res = Handler::handle(&mut *actor, ctx, msg).await;
                                         let _ = oneshot_tx.send(res);
                                     })
-                                }),
-                            ))?;
+                                })),
+                            )?;
                             Ok(oneshot_rx.await?)
                         }
                         None => Err(crate::error::anyhow!("Actor Dropped")),
@@ -147,13 +149,13 @@ impl<A: Actor> Addr<A> {
             actor_id: self.actor_id.clone(),
             sender_fn: Box::new(move |msg| match weak_tx.upgrade() {
                 Some(tx) => {
-                    mpsc::UnboundedSender::clone(&tx).start_send(ActorEvent::Exec(Box::new(
-                        move |actor, ctx| {
+                    Pin::new(&mut EventSender::<A>::clone(&tx)).start_send(ActorEvent::Exec(
+                        Box::new(move |actor, ctx| {
                             Box::pin(async move {
                                 Handler::handle(&mut *actor, ctx, msg).await;
                             })
-                        },
-                    )))?;
+                        }),
+                    ))?;
                     Ok(())
                 }
                 None => Ok(()),
@@ -171,25 +173,25 @@ impl<A: Actor> Addr<A> {
     }
 }
 
-pub struct WeakAddr<A> {
+pub struct WeakAddr<A: Actor> {
     pub(crate) actor_id: ActorId,
-    pub(crate) tx: Weak<mpsc::UnboundedSender<ActorEvent<A>>>,
+    pub(crate) tx: Weak<EventSender<A>>,
     pub(crate) rx_exit: Option<Shared<oneshot::Receiver<()>>>,
 }
 
-impl<A> PartialEq for WeakAddr<A> {
+impl<A: Actor> PartialEq for WeakAddr<A> {
     fn eq(&self, other: &Self) -> bool {
         self.actor_id == other.actor_id
     }
 }
 
-impl<A> Hash for WeakAddr<A> {
+impl<A: Actor> Hash for WeakAddr<A> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.actor_id.hash(state)
     }
 }
 
-impl<A> WeakAddr<A> {
+impl<A: Actor> WeakAddr<A> {
     pub fn upgrade(&self) -> Option<Addr<A>> {
         match self.tx.upgrade() {
             Some(tx) => Some(Addr {
@@ -202,7 +204,7 @@ impl<A> WeakAddr<A> {
     }
 }
 
-impl<A> Clone for WeakAddr<A> {
+impl<A: Actor> Clone for WeakAddr<A> {
     fn clone(&self) -> Self {
         Self {
             actor_id: self.actor_id,

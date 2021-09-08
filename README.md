@@ -86,6 +86,13 @@ You can edit your `Cargo.toml` as follows:
 xactor = { version = "x.x.x", features = ["runtime-tokio"], default-features = false }
 ```
 
+On **Nightly compilers** from after 2021-08-04, there is also the option to use a user-defined class as the underlying message queue using the `generic-mailbox` feature. This does not affect or require default features.
+
+```toml
+xactor = { version = "x.x.x", features = ["generic-mailbox"] }
+```
+
+
 [cargo-add]: https://github.com/killercup/cargo-edit
 
 ## References

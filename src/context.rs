@@ -1,33 +1,45 @@
 use crate::addr::ActorEvent;
 use crate::broker::{Subscribe, Unsubscribe};
+use crate::mailbox::{EventReceiver, EventSender};
 use crate::runtime::{sleep, spawn};
-use crate::{ActorId, Addr, Broker, Error, Handler, Message, Result, Service, StreamHandler};
-use futures::channel::{mpsc, oneshot};
+use crate::{
+    Actor, ActorId, Addr, Broker, Error, Handler, Message, Result, Service, StreamHandler,
+};
+use futures::channel::oneshot;
 use futures::future::{AbortHandle, Abortable, Shared};
-use futures::{Stream, StreamExt};
+use futures::{Sink, Stream, StreamExt};
 use once_cell::sync::OnceCell;
 use slab::Slab;
+use std::pin::Pin;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Weak};
 use std::time::Duration;
 
 ///An actor execution context.
-pub struct Context<A> {
+pub struct Context<A: Actor> {
     actor_id: ActorId,
-    tx: Weak<mpsc::UnboundedSender<ActorEvent<A>>>,
+    tx: Weak<EventSender<A>>,
     pub(crate) rx_exit: Option<Shared<oneshot::Receiver<()>>>,
     pub(crate) streams: Slab<AbortHandle>,
     pub(crate) intervals: Slab<AbortHandle>,
 }
 
-impl<A> Context<A> {
+// Produce a mailbox for an actor. Standalone fn to move the feature-gating away from the logic of Context::new
+// The EventSender/EventReceiver aliases change meaning depending on features to make this correct.
+fn create_actor_mailbox<A: Actor>() -> (EventSender<A>, EventReceiver<A>) {
+    #[cfg(feature = "generic-mailbox")]
+    {
+        use crate::mailbox::*;
+        return <A as Actor>::Mailbox::create::<ActorEvent<A>>();
+    }
+    #[cfg(not(feature = "generic-mailbox"))]
+    return futures::channel::mpsc::unbounded();
+}
+
+impl<A: Actor> Context<A> {
     pub(crate) fn new(
         rx_exit: Option<Shared<oneshot::Receiver<()>>>,
-    ) -> (
-        Self,
-        mpsc::UnboundedReceiver<ActorEvent<A>>,
-        Arc<mpsc::UnboundedSender<ActorEvent<A>>>,
-    ) {
+    ) -> (Self, EventReceiver<A>, Arc<EventSender<A>>) {
         static ACTOR_ID: OnceCell<AtomicU64> = OnceCell::new();
 
         // Get an actor id
@@ -35,7 +47,7 @@ impl<A> Context<A> {
             .get_or_init(Default::default)
             .fetch_add(1, Ordering::Relaxed);
 
-        let (tx, rx) = mpsc::unbounded::<ActorEvent<A>>();
+        let (tx, rx) = create_actor_mailbox::<A>();
         let tx = Arc::new(tx);
         let weak_tx = Arc::downgrade(&tx);
         (
@@ -69,7 +81,7 @@ impl<A> Context<A> {
     /// Stop the actor.
     pub fn stop(&self, err: Option<Error>) {
         if let Some(tx) = self.tx.upgrade() {
-            mpsc::UnboundedSender::clone(&*tx)
+            Pin::new(&mut EventSender::<A>::clone(&tx))
                 .start_send(ActorEvent::Stop(err))
                 .ok();
         }
@@ -157,7 +169,7 @@ impl<A> Context<A> {
         let fut = {
             async move {
                 if let Some(tx) = tx.upgrade() {
-                    mpsc::UnboundedSender::clone(&*tx)
+                    Pin::new(&mut EventSender::<A>::clone(&*tx))
                         .start_send(ActorEvent::Exec(Box::new(move |actor, ctx| {
                             Box::pin(async move {
                                 StreamHandler::started(actor, ctx).await;
@@ -170,13 +182,13 @@ impl<A> Context<A> {
 
                 while let Some(msg) = stream.next().await {
                     if let Some(tx) = tx.upgrade() {
-                        let res = mpsc::UnboundedSender::clone(&*tx).start_send(ActorEvent::Exec(
-                            Box::new(move |actor, ctx| {
+                        let res = Pin::new(&mut EventSender::<A>::clone(&*tx)).start_send(
+                            ActorEvent::Exec(Box::new(move |actor, ctx| {
                                 Box::pin(async move {
                                     StreamHandler::handle(actor, ctx, msg).await;
                                 })
-                            }),
-                        ));
+                            })),
+                        );
                         if res.is_err() {
                             return;
                         }
@@ -186,7 +198,7 @@ impl<A> Context<A> {
                 }
 
                 if let Some(tx) = tx.upgrade() {
-                    mpsc::UnboundedSender::clone(&*tx)
+                    Pin::new(&mut EventSender::<A>::clone(&*tx))
                         .start_send(ActorEvent::Exec(Box::new(move |actor, ctx| {
                             Box::pin(async move {
                                 StreamHandler::finished(actor, ctx).await;
@@ -196,7 +208,7 @@ impl<A> Context<A> {
                 }
 
                 if let Some(tx) = tx.upgrade() {
-                    mpsc::UnboundedSender::clone(&*tx)
+                    Pin::new(&mut EventSender::<A>::clone(&*tx))
                         .start_send(ActorEvent::RemoveStream(id))
                         .ok();
                 }

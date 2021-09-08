@@ -1,3 +1,7 @@
+#![cfg_attr(feature = "generic-mailbox", feature(associated_type_defaults))] // For back compatibility even if the feature's on
+#![cfg_attr(feature = "generic-mailbox", feature(associated_type_bounds))]
+#![cfg_attr(feature = "generic-mailbox", feature(generic_associated_types))]
+
 //! # Xactor is a rust actors framework based on async-std
 //!
 //! ## Documentation
@@ -67,6 +71,7 @@ mod addr;
 mod broker;
 mod caller;
 mod context;
+mod mailbox;
 mod runtime;
 mod service;
 mod supervisor;
@@ -96,6 +101,8 @@ pub use addr::{Addr, WeakAddr};
 pub use broker::Broker;
 pub use caller::{Caller, Sender};
 pub use context::Context;
+#[allow(unused_imports)]
+pub use mailbox::*; // Contents changes depending on feature gates, so glob avoids naming pontentially non-existing items
 pub use runtime::{block_on, sleep, spawn, timeout};
 pub use service::{LocalService, Service};
 pub use supervisor::Supervisor;
