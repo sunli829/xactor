@@ -58,12 +58,12 @@ pub trait Service: Actor + Default {
         match registry.get_mut(&TypeId::of::<Self>()) {
             Some(addr) => Ok(addr.downcast_ref::<Addr<Self>>().unwrap().clone()),
             None => {
-                let actor_manager = LifeCycle::new();
+                let life_cycle = LifeCycle::new();
 
-                registry.insert(TypeId::of::<Self>(), Box::new(actor_manager.address()));
+                registry.insert(TypeId::of::<Self>(), Box::new(life_cycle.address()));
                 drop(registry);
 
-                actor_manager.start_actor(Self::default()).await
+                life_cycle.start_actor(Self::default()).await
             }
         }
     }
