@@ -15,7 +15,7 @@ pub trait Message: 'static + Send {
 
 /// Describes how to handle messages of a specific type.
 /// Implementing Handler is a general way to handle incoming messages.
-/// The type T is a message which can be handled by the actor.
+/// The type `T` is a message which can be handled by the actor.
 #[async_trait::async_trait]
 pub trait Handler<T: Message>: Actor
 where
@@ -28,7 +28,7 @@ where
 /// Describes how to handle messages of a specific type.
 /// Implementing Handler is a general way to handle incoming streams.
 /// The type T is a stream message which can be handled by the actor.
-/// Stream messages do not need to implement the `Message` trait.
+/// Stream messages do not need to implement the [`Message`] trait.
 #[async_trait::async_trait]
 #[allow(unused_variables)]
 pub trait StreamHandler<T: 'static>: Actor {
@@ -47,13 +47,13 @@ pub trait StreamHandler<T: 'static>: Actor {
 }
 
 /// Actors are objects which encapsulate state and behavior.
-/// Actors run within a specific execution context `Context<A>`.
+/// Actors run within a specific execution context [`Context<A>`].
 /// The context object is available only during execution.
 /// Each actor has a separate execution context.
 ///
 /// Roles communicate by exchanging messages.
 /// The requester can wait for a response.
-/// By `Addr` referring to the actors, the actors must provide an `Handle<T>` implementation for this message.
+/// By [`Addr`] referring to the actors, the actors must provide an [`Handler<T>`] implementation for this message.
 /// All messages are statically typed.
 #[async_trait::async_trait]
 #[allow(unused_variables)]
@@ -68,7 +68,7 @@ pub trait Actor: Sized + Send + 'static {
 
     /// Construct and start a new actor, returning its address.
     ///
-    /// This is constructs a new actor using the `Default` trait, and invokes its `start` method.
+    /// This is constructs a new actor using the [`Default`] trait, and invokes its [`start`](`Actor::start`) method.
     async fn start_default() -> Result<Addr<Self>>
     where
         Self: Default,

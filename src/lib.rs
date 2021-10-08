@@ -61,6 +61,7 @@
 //! * [Async-std](https://github.com/async-rs/async-std)
 
 #![allow(clippy::type_complexity)]
+#![warn(clippy::doc_markdown)]
 
 mod actor;
 mod addr;
@@ -72,21 +73,25 @@ mod service;
 mod supervisor;
 
 #[cfg(all(feature = "anyhow", feature = "eyre"))]
-compile_error!(r#"
+compile_error!(
+    r#"
     features `xactor/anyhow` and `xactor/eyre` are mutually exclusive.
     If you are trying to disable anyhow set `default-features = false`.
-"#);
+"#
+);
 
-#[cfg(feature="anyhow")]
+#[cfg(feature = "anyhow")]
 pub use anyhow as error;
 
-#[cfg(feature="eyre")]
+#[cfg(feature = "eyre")]
 pub use eyre as error;
 
-/// Alias of error::Result
+#[cfg_attr(feature = "eyre", doc = "Alias of [`eyre::Result`]")]
+#[cfg_attr(not(feature = "eyre"), doc = "Alias of [`anyhow::Result`]")]
 pub type Result<T> = error::Result<T>;
 
-/// Alias of error::Error
+#[cfg_attr(feature = "eyre", doc = "Alias of [`eyre::Error`]")]
+#[cfg_attr(not(feature = "eyre"), doc = "Alias of [`anyhow::Error`]")]
 pub type Error = error::Error;
 
 pub type ActorId = u64;

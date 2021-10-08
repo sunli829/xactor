@@ -19,8 +19,8 @@ pub(crate) enum ActorEvent<A> {
 
 /// The address of an actor.
 ///
-/// When all references to `Addr<A>` are dropped, the actor ends.
-/// You can use `Clone` trait to create multiple copies of `Addr<A>`.
+/// When all references to [`Addr<A>`] are dropped, the actor ends.
+/// You can use the [`Clone`] trait to create multiple copies of [`Addr<A>`].
 pub struct Addr<A> {
     pub(crate) actor_id: ActorId,
     pub(crate) tx: Arc<mpsc::UnboundedSender<ActorEvent<A>>>,
@@ -38,6 +38,7 @@ impl<A> Clone for Addr<A> {
 }
 
 impl<A> Addr<A> {
+    /// Turns an [`Addr<A>`] into a [`WeakAddr<A>`]
     pub fn downgrade(&self) -> WeakAddr<A> {
         WeakAddr {
             actor_id: self.actor_id,
@@ -104,7 +105,7 @@ impl<A: Actor> Addr<A> {
         Ok(())
     }
 
-    /// Create a `Caller<T>` for a specific message type
+    /// Create a [`Caller<T>`] for a specific message type
     pub fn caller<T: Message>(&self) -> Caller<T>
     where
         A: Handler<T>,
@@ -112,7 +113,7 @@ impl<A: Actor> Addr<A> {
         let weak_tx = Arc::downgrade(&self.tx);
 
         Caller {
-            actor_id: self.actor_id.clone(),
+            actor_id: self.actor_id,
             caller_fn: Mutex::new(Box::new(move |msg| {
                 let weak_tx_option = weak_tx.upgrade();
                 Box::pin(async move {
@@ -137,14 +138,14 @@ impl<A: Actor> Addr<A> {
         }
     }
 
-    /// Create a `Sender<T>` for a specific message type
+    /// Create a [`Sender<T>`] for a specific message type
     pub fn sender<T: Message<Result = ()>>(&self) -> Sender<T>
     where
         A: Handler<T>,
     {
         let weak_tx = Arc::downgrade(&self.tx);
         Sender {
-            actor_id: self.actor_id.clone(),
+            actor_id: self.actor_id,
             sender_fn: Box::new(move |msg| match weak_tx.upgrade() {
                 Some(tx) => {
                     mpsc::UnboundedSender::clone(&tx).start_send(ActorEvent::Exec(Box::new(
@@ -171,6 +172,10 @@ impl<A: Actor> Addr<A> {
     }
 }
 
+/// Weak version of [`Addr<A>`].
+/// 
+/// This address will not prolong the lifetime of the actor.
+/// In order to use a [`WeakAddr<A>`] you need to "upgrade" it to a proper [`Addr<A>`].
 pub struct WeakAddr<A> {
     pub(crate) actor_id: ActorId,
     pub(crate) tx: Weak<mpsc::UnboundedSender<ActorEvent<A>>>,
@@ -190,15 +195,15 @@ impl<A> Hash for WeakAddr<A> {
 }
 
 impl<A> WeakAddr<A> {
+    /// Attempts to turn a [`WeakAddr<A>`] into an [`Addr<A>`].
+    /// 
+    /// If the original [`Addr<A>`] has already been dropped this method will return [`None`]
     pub fn upgrade(&self) -> Option<Addr<A>> {
-        match self.tx.upgrade() {
-            Some(tx) => Some(Addr {
-                actor_id: self.actor_id,
-                tx,
-                rx_exit: self.rx_exit.clone(),
-            }),
-            None => None,
-        }
+        self.tx.upgrade().map(|tx| Addr {
+            actor_id: self.actor_id,
+            tx,
+            rx_exit: self.rx_exit.clone(),
+        })
     }
 }
 
