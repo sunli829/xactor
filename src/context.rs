@@ -141,7 +141,6 @@ impl<A> Context<A> {
     ///     Ok(())
     /// }
     /// ```
-    /// ```
     pub fn add_stream<S>(&mut self, mut stream: S)
     where
         S: Stream + Unpin + Send + 'static,

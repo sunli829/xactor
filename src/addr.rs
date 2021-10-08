@@ -19,8 +19,8 @@ pub(crate) enum ActorEvent<A> {
 
 /// The address of an actor.
 ///
-/// When all references to `Addr<A>` are dropped, the actor ends.
-/// You can use `Clone` trait to create multiple copies of `Addr<A>`.
+/// When all references to [`Addr<A>`] are dropped, the actor ends.
+/// You can use the [`Clone`] trait to create multiple copies of [`Addr<A>`].
 pub struct Addr<A> {
     pub(crate) actor_id: ActorId,
     pub(crate) tx: Arc<mpsc::UnboundedSender<ActorEvent<A>>>,
@@ -104,7 +104,7 @@ impl<A: Actor> Addr<A> {
         Ok(())
     }
 
-    /// Create a `Caller<T>` for a specific message type
+    /// Create a [`Caller<T>`] for a specific message type
     pub fn caller<T: Message>(&self) -> Caller<T>
     where
         A: Handler<T>,
@@ -137,7 +137,7 @@ impl<A: Actor> Addr<A> {
         }
     }
 
-    /// Create a `Sender<T>` for a specific message type
+    /// Create a [`Sender<T>`] for a specific message type
     pub fn sender<T: Message<Result = ()>>(&self) -> Sender<T>
     where
         A: Handler<T>,

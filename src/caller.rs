@@ -13,7 +13,8 @@ pub(crate) type SenderFn<T> = Box<dyn Fn(T) -> Result<()> + 'static + Send>;
 
 /// Caller of a specific message type
 ///
-/// Like `Sender<T>, Caller has a weak reference to the recipient of the message type, and so will not prevent an actor from stopping if all Addr's have been dropped elsewhere.
+/// Like [`Sender<T>`], `Caller` has a weak reference to the recipient of the message type,
+/// and so will not prevent an actor from stopping if all [`Addr`](`crate::Addr`)'s have been dropped elsewhere.
 
 pub struct Caller<T: Message> {
     pub actor_id: ActorId,
@@ -40,7 +41,8 @@ impl<T: Message<Result = ()>> Hash for Caller<T> {
 
 /// Sender of a specific message type
 ///
-/// Like `Caller<T>, Sender has a weak reference to the recipient of the message type, and so will not prevent an actor from stopping if all Addr's have been dropped elsewhere.
+/// Like [`Caller<T>`], Sender has a weak reference to the recipient of the message type,
+/// and so will not prevent an actor from stopping if all [`Addr`](`crate::Addr`)'s have been dropped elsewhere.
 /// This allows it to be used in `send_later` `send_interval` actor functions, and not keep the actor alive indefinitely even after all references to it have been dropped (unless `ctx.stop()` is called from within)
 
 pub struct Sender<T: Message> {
