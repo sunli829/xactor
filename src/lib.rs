@@ -70,6 +70,7 @@ mod context;
 mod runtime;
 mod service;
 mod supervisor;
+mod lifecycle;
 
 #[cfg(all(feature = "anyhow", feature = "eyre"))]
 compile_error!(r#"
