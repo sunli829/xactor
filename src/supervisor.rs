@@ -1,7 +1,7 @@
 use crate::addr::ActorEvent;
+use crate::error::Result;
 use crate::runtime::spawn;
 use crate::{Actor, Addr, Context};
-use crate::error::Result;
 use futures::StreamExt;
 
 /// Actor supervisor

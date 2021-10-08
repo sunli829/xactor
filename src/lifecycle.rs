@@ -1,20 +1,20 @@
-use crate::addr::ActorEvent;
-use crate::error::Result;
-use crate::runtime::spawn;
-use crate::Actor;
-use crate::{Addr, Context};
-use futures::channel::mpsc::{UnboundedReceiver, UnboundedSender};
-use futures::channel::oneshot;
-use futures::{FutureExt, StreamExt};
+use crate::{addr::ActorEvent, error::Result, runtime::spawn, Actor, Addr, Context};
+use futures::{
+    channel::{
+        mpsc::{UnboundedReceiver, UnboundedSender},
+        oneshot,
+    },
+    FutureExt, StreamExt,
+};
 
-pub(crate) struct ActorManager<A: Actor> {
+pub(crate) struct LifeCycle<A: Actor> {
     ctx: Context<A>,
     tx: std::sync::Arc<UnboundedSender<ActorEvent<A>>>,
     rx: UnboundedReceiver<ActorEvent<A>>,
     tx_exit: oneshot::Sender<()>,
 }
 
-impl<A: Actor> ActorManager<A> {
+impl<A: Actor> LifeCycle<A> {
     pub(crate) fn new() -> Self {
         let (tx_exit, rx_exit) = oneshot::channel();
         let rx_exit = rx_exit.shared();

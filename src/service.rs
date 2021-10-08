@@ -1,13 +1,14 @@
-use crate::error::Result;
-use crate::lifecycle::ActorManager;
-use crate::{Actor, Addr};
 use fnv::FnvHasher;
 use futures::lock::Mutex;
 use once_cell::sync::OnceCell;
-use std::any::{Any, TypeId};
-use std::cell::RefCell;
-use std::collections::HashMap;
-use std::hash::BuildHasherDefault;
+use std::{
+    any::{Any, TypeId},
+    cell::RefCell,
+    collections::HashMap,
+    hash::BuildHasherDefault,
+};
+
+use crate::{error::Result, lifecycle::LifeCycle, Actor, Addr};
 
 /// Trait define a global service.
 ///
@@ -57,7 +58,7 @@ pub trait Service: Actor + Default {
         match registry.get_mut(&TypeId::of::<Self>()) {
             Some(addr) => Ok(addr.downcast_ref::<Addr<Self>>().unwrap().clone()),
             None => {
-                let actor_manager = ActorManager::new();
+                let actor_manager = LifeCycle::new();
 
                 registry.insert(TypeId::of::<Self>(), Box::new(actor_manager.address()));
                 drop(registry);
@@ -88,7 +89,7 @@ pub trait LocalService: Actor + Default {
         match res {
             Some(addr) => Ok(addr),
             None => {
-                let addr = ActorManager::new().start_actor(Self::default()).await?;
+                let addr = LifeCycle::new().start_actor(Self::default()).await?;
                 LOCAL_REGISTRY.with(|registry| {
                     registry
                         .borrow_mut()
