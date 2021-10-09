@@ -46,7 +46,7 @@ struct Shutdown;
 impl Handler<Shutdown> for PingTimer {
     async fn handle(&mut self, ctx: &mut Context<Self>, _msg: Shutdown) {
         println!("PingTimer :: received Shutdown");
-        // ctx.stop_supervisor(None);
+        ctx.stop_supervisor(None);
     }
 }
 

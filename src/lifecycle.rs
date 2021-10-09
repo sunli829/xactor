@@ -51,6 +51,7 @@ impl<A: Actor> LifeCycle<A> {
                     match event {
                         ActorEvent::Exec(f) => f(&mut actor, &mut ctx).await,
                         ActorEvent::Stop(_err) => break,
+                        ActorEvent::StopSupervisor(_err) => {}
                         ActorEvent::RemoveStream(id) => {
                             if ctx.streams.contains(id) {
                                 ctx.streams.remove(id);
@@ -105,6 +106,7 @@ impl<A: Actor> LifeCycle<A> {
                         match rx.next().await {
                             None => break 'restart_loop,
                             Some(ActorEvent::Stop(_err)) => break 'event_loop,
+                            Some(ActorEvent::StopSupervisor(_err)) => break 'restart_loop,
                             Some(ActorEvent::Exec(f)) => f(&mut actor, &mut ctx).await,
                             Some(ActorEvent::RemoveStream(id)) => {
                                 if ctx.streams.contains(id) {
