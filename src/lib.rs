@@ -67,6 +67,7 @@ mod addr;
 mod broker;
 mod caller;
 mod context;
+mod lifecycle;
 mod runtime;
 mod service;
 mod supervisor;

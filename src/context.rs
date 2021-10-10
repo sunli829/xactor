@@ -75,6 +75,17 @@ impl<A> Context<A> {
         }
     }
 
+    /// Stop the supervisor.
+    ///
+    /// this is ignored by normal actors
+    pub fn stop_supervisor(&self, err: Option<Error>) {
+        if let Some(tx) = self.tx.upgrade() {
+            mpsc::UnboundedSender::clone(&*tx)
+                .start_send(ActorEvent::StopSupervisor(err))
+                .ok();
+        }
+    }
+
     pub fn abort_intervals(&mut self) {
         for handle in self.intervals.drain() {
             handle.abort()

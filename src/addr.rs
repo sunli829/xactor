@@ -14,6 +14,7 @@ pub(crate) type ExecFn<A> =
 pub(crate) enum ActorEvent<A> {
     Exec(ExecFn<A>),
     Stop(Option<Error>),
+    StopSupervisor(Option<Error>),
     RemoveStream(usize),
 }
 
@@ -68,6 +69,14 @@ impl<A: Actor> Addr<A> {
     /// Stop the actor.
     pub fn stop(&mut self, err: Option<Error>) -> Result<()> {
         mpsc::UnboundedSender::clone(&*self.tx).start_send(ActorEvent::Stop(err))?;
+        Ok(())
+    }
+
+    /// Stop the supervisor.
+    ///
+    /// this is ignored by normal actors
+    pub fn stop_supervisor(&mut self, err: Option<Error>) -> Result<()> {
+        mpsc::UnboundedSender::clone(&*self.tx).start_send(ActorEvent::StopSupervisor(err))?;
         Ok(())
     }
 
