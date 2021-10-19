@@ -26,14 +26,17 @@ async fn main() -> Result<()> {
     // start new actor
     let addr = MyActor { count: 10 }.start().await?;
 
-    let sender: Caller<Ping> = addr.caller();
+    let caller: Caller<Ping> = addr.caller();
 
-    let res = sender.call(Ping(10)).await?;
+    let res = caller.call(Ping(10)).await?;
     println!("RESULT: {}", res == 20);
 
-    std::mem::drop(addr);
 
-    let res = sender.call(Ping(10)).await?;
+    println!("caller can upgrade: {}", caller.can_upgrade());
+    std::mem::drop(addr);
+    println!("caller can upgrade: {}", caller.can_upgrade());
+
+    let res = caller.call(Ping(10)).await?;
     println!("RESULT: {}", res == 20);
 
     Ok(())

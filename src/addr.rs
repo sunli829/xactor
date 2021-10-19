@@ -1,3 +1,4 @@
+use crate::caller::CallerFn;
 use crate::{Actor, ActorId, Caller, Context, Error, Handler, Message, Result, Sender};
 use futures::channel::{mpsc, oneshot};
 use futures::future::Shared;
@@ -110,30 +111,35 @@ impl<A: Actor> Addr<A> {
         A: Handler<T>,
     {
         let weak_tx = Arc::downgrade(&self.tx);
+        let caller_fn: Mutex<CallerFn<T>> = Mutex::new(Box::new(move |msg| {
+            let weak_tx_option = weak_tx.upgrade();
+            Box::pin(async move {
+                match weak_tx_option {
+                    Some(tx) => {
+                        let (oneshot_tx, oneshot_rx) = oneshot::channel();
+
+                        mpsc::UnboundedSender::clone(&tx).start_send(ActorEvent::Exec(
+                            Box::new(move |actor, ctx| {
+                                Box::pin(async move {
+                                    let res = Handler::handle(&mut *actor, ctx, msg).await;
+                                    let _ = oneshot_tx.send(res);
+                                })
+                            }),
+                        ))?;
+                        Ok(oneshot_rx.await?)
+                    }
+                    None => Err(crate::error::anyhow!("Actor Dropped")),
+                }
+            })
+        }));
+
+        let weak_tx = Arc::downgrade(&self.tx);
+        let test_fn = Box::new(move || weak_tx.strong_count() > 0);
 
         Caller {
-            actor_id: self.actor_id.clone(),
-            caller_fn: Mutex::new(Box::new(move |msg| {
-                let weak_tx_option = weak_tx.upgrade();
-                Box::pin(async move {
-                    match weak_tx_option {
-                        Some(tx) => {
-                            let (oneshot_tx, oneshot_rx) = oneshot::channel();
-
-                            mpsc::UnboundedSender::clone(&tx).start_send(ActorEvent::Exec(
-                                Box::new(move |actor, ctx| {
-                                    Box::pin(async move {
-                                        let res = Handler::handle(&mut *actor, ctx, msg).await;
-                                        let _ = oneshot_tx.send(res);
-                                    })
-                                }),
-                            ))?;
-                            Ok(oneshot_rx.await?)
-                        }
-                        None => Err(crate::error::anyhow!("Actor Dropped")),
-                    }
-                })
-            })),
+            actor_id: self.actor_id,
+            caller_fn,
+            test_fn,
         }
     }
 
@@ -143,21 +149,27 @@ impl<A: Actor> Addr<A> {
         A: Handler<T>,
     {
         let weak_tx = Arc::downgrade(&self.tx);
+        let sender_fn = Box::new(move |msg| match weak_tx.upgrade() {
+            Some(tx) => {
+                mpsc::UnboundedSender::clone(&tx).start_send(ActorEvent::Exec(Box::new(
+                    move |actor, ctx| {
+                        Box::pin(async move {
+                            Handler::handle(&mut *actor, ctx, msg).await;
+                        })
+                    },
+                )))?;
+                Ok(())
+            }
+            None => Ok(()),
+        });
+
+        let weak_tx = Arc::downgrade(&self.tx);
+        let test_fn = Box::new(move || weak_tx.strong_count() > 0);
+
         Sender {
-            actor_id: self.actor_id.clone(),
-            sender_fn: Box::new(move |msg| match weak_tx.upgrade() {
-                Some(tx) => {
-                    mpsc::UnboundedSender::clone(&tx).start_send(ActorEvent::Exec(Box::new(
-                        move |actor, ctx| {
-                            Box::pin(async move {
-                                Handler::handle(&mut *actor, ctx, msg).await;
-                            })
-                        },
-                    )))?;
-                    Ok(())
-                }
-                None => Ok(()),
-            }),
+            actor_id: self.actor_id,
+            sender_fn,
+            test_fn,
         }
     }
 
@@ -191,14 +203,11 @@ impl<A> Hash for WeakAddr<A> {
 
 impl<A> WeakAddr<A> {
     pub fn upgrade(&self) -> Option<Addr<A>> {
-        match self.tx.upgrade() {
-            Some(tx) => Some(Addr {
-                actor_id: self.actor_id,
-                tx,
-                rx_exit: self.rx_exit.clone(),
-            }),
-            None => None,
-        }
+        self.tx.upgrade().map(|tx| Addr {
+            actor_id: self.actor_id,
+            tx,
+            rx_exit: self.rx_exit.clone(),
+        })
     }
 }
 

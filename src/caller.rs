@@ -11,6 +11,8 @@ pub(crate) type CallerFn<T> = Box<dyn Fn(T) -> CallerFuture<T> + Send + 'static>
 
 pub(crate) type SenderFn<T> = Box<dyn Fn(T) -> Result<()> + 'static + Send>;
 
+pub(crate) type TestFn = Box<dyn Fn() -> bool + 'static + Send>;
+
 /// Caller of a specific message type
 ///
 /// Like `Sender<T>, Caller has a weak reference to the recipient of the message type, and so will not prevent an actor from stopping if all Addr's have been dropped elsewhere.
@@ -18,11 +20,15 @@ pub(crate) type SenderFn<T> = Box<dyn Fn(T) -> Result<()> + 'static + Send>;
 pub struct Caller<T: Message> {
     pub actor_id: ActorId,
     pub(crate) caller_fn: Mutex<CallerFn<T>>,
+    pub(crate) test_fn: TestFn,
 }
 
 impl<T: Message> Caller<T> {
     pub fn call(&self, msg: T) -> CallerFuture<T> {
         (self.caller_fn.lock().unwrap())(msg)
+    }
+    pub fn can_upgrade(&self) -> bool {
+        (self.test_fn)()
     }
 }
 
@@ -46,11 +52,15 @@ impl<T: Message<Result = ()>> Hash for Caller<T> {
 pub struct Sender<T: Message> {
     pub actor_id: ActorId,
     pub(crate) sender_fn: SenderFn<T>,
+    pub(crate) test_fn: TestFn,
 }
 
 impl<T: Message<Result = ()>> Sender<T> {
     pub fn send(&self, msg: T) -> Result<()> {
         (self.sender_fn)(msg)
+    }
+    pub fn can_upgrade(&self) -> bool {
+        (self.test_fn)()
     }
 }
 
