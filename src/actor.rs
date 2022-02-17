@@ -1,7 +1,7 @@
 use crate::addr::ActorEvent;
+use crate::error::Result;
 use crate::runtime::spawn;
 use crate::{Addr, Context};
-use crate::error::Result;
 use futures::channel::mpsc::{UnboundedReceiver, UnboundedSender};
 use futures::channel::oneshot;
 use futures::{FutureExt, StreamExt};
@@ -158,8 +158,10 @@ impl<A: Actor> ActorManager<A> {
                         ActorEvent::Exec(f) => f(&mut actor, &mut ctx).await,
                         ActorEvent::Stop(_err) => break,
                         ActorEvent::RemoveStream(id) => {
-                            if ctx.streams.contains(id) {
-                                ctx.streams.remove(id);
+                            let mut streams = ctx.streams.lock().unwrap();
+
+                            if streams.contains(id) {
+                                streams.remove(id);
                             }
                         }
                     }

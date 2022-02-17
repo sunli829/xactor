@@ -95,9 +95,21 @@ impl Actor for Subscriber {
         // Send subscription request message to the Message Producer
         println!("Child Subscriber Started - id {:?}", self.id);
         let self_sender = ctx.address().sender();
+
         let _ = self.message_producer_addr.send(SubscribeToProducer {
-            sender: self_sender,
+            sender: self_sender.clone(),
         });
+
+        let _ = self.message_producer_addr.send(SubscribeToProducer {
+            sender: self_sender.clone(),
+        });
+        let _ = self.message_producer_addr.send(SubscribeToProducer {
+            sender: self_sender.clone(),
+        });
+        let _ = self.message_producer_addr.send(SubscribeToProducer {
+            sender: self_sender.clone(),
+        });
+
         Ok(())
     }
 }
@@ -169,7 +181,7 @@ impl Handler<Broadcast> for MessageProducer {
 #[async_trait::async_trait]
 impl Handler<SubscribeToProducer> for MessageProducer {
     async fn handle(&mut self, _ctx: &mut Context<Self>, msg: SubscribeToProducer) {
-        println!("Recieved Subscription Request");
+        println!("Recieved Subscription Request {:}", msg.sender.actor_id);
         self.subscribers.push(msg.sender);
     }
 }

@@ -1,7 +1,7 @@
 use crate::addr::ActorEvent;
+use crate::error::Result;
 use crate::runtime::spawn;
 use crate::{Actor, Addr, Context};
-use crate::error::Result;
 use futures::StreamExt;
 
 /// Actor supervisor
@@ -97,8 +97,10 @@ impl Supervisor {
                             Some(ActorEvent::Stop(_err)) => break 'event_loop,
                             Some(ActorEvent::Exec(f)) => f(&mut actor, &mut ctx).await,
                             Some(ActorEvent::RemoveStream(id)) => {
-                                if ctx.streams.contains(id) {
-                                    ctx.streams.remove(id);
+                                let mut streams = ctx.streams.lock().unwrap();
+
+                                if streams.contains(id) {
+                                    streams.remove(id);
                                 }
                             }
                         }

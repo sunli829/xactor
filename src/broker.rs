@@ -1,14 +1,9 @@
-use crate::{Actor, Addr, Context, Handler, Message, Result, Sender, Service};
+use crate::{Actor, ActorId, Addr, Context, Handler, Message, Result, Sender, Service};
 use fnv::FnvHasher;
-use std::any::Any;
-use std::collections::HashMap;
-use std::hash::BuildHasherDefault;
-use std::marker::PhantomData;
-
-type SubscriptionId = u64;
+use std::{collections::HashMap, hash::BuildHasherDefault};
 
 pub(crate) struct Subscribe<T: Message<Result = ()>> {
-    pub(crate) id: SubscriptionId,
+    pub(crate) actor_id: ActorId,
     pub(crate) sender: Sender<T>,
 }
 
@@ -17,19 +12,12 @@ impl<T: Message<Result = ()>> Message for Subscribe<T> {
 }
 
 pub(crate) struct Unsubscribe {
-    pub(crate) id: SubscriptionId,
+    pub(crate) actor_id: ActorId,
 }
 
 impl Message for Unsubscribe {
     type Result = ();
 }
-
-struct Publish<T: Message<Result = ()> + Clone>(T);
-
-impl<T: Message<Result = ()> + Clone> Message for Publish<T> {
-    type Result = ();
-}
-
 /// Message broker is used to support publishing and subscribing to messages.
 ///
 /// # Examples
@@ -86,15 +74,13 @@ impl<T: Message<Result = ()> + Clone> Message for Publish<T> {
 /// }
 /// ```
 pub struct Broker<T: Message<Result = ()>> {
-    subscribes: HashMap<SubscriptionId, Box<dyn Any + Send>, BuildHasherDefault<FnvHasher>>,
-    mark: PhantomData<T>,
+    subscribers: HashMap<ActorId, Sender<T>, BuildHasherDefault<FnvHasher>>,
 }
 
 impl<T: Message<Result = ()>> Default for Broker<T> {
     fn default() -> Self {
         Self {
-            subscribes: Default::default(),
-            mark: PhantomData,
+            subscribers: Default::default(),
         }
     }
 }
@@ -106,31 +92,29 @@ impl<T: Message<Result = ()>> Service for Broker<T> {}
 #[async_trait::async_trait]
 impl<T: Message<Result = ()>> Handler<Subscribe<T>> for Broker<T> {
     async fn handle(&mut self, _ctx: &mut Context<Self>, msg: Subscribe<T>) {
-        self.subscribes.insert(msg.id, Box::new(msg.sender));
+        self.subscribers.insert(msg.actor_id, msg.sender);
     }
 }
 
 #[async_trait::async_trait]
 impl<T: Message<Result = ()>> Handler<Unsubscribe> for Broker<T> {
     async fn handle(&mut self, _ctx: &mut Context<Self>, msg: Unsubscribe) {
-        self.subscribes.remove(&msg.id);
+        self.subscribers.remove(&msg.actor_id);
     }
 }
 
 #[async_trait::async_trait]
-impl<T: Message<Result = ()> + Clone> Handler<Publish<T>> for Broker<T> {
-    async fn handle(&mut self, _ctx: &mut Context<Self>, msg: Publish<T>) {
-        for sender in self.subscribes.values_mut() {
-            if let Some(sender) = sender.downcast_mut::<Sender<T>>() {
-                sender.send(msg.0.clone()).ok();
-            }
-        }
+impl<T: Message<Result = ()> + Clone> Handler<T> for Broker<T> {
+    async fn handle(&mut self, _ctx: &mut Context<Self>, msg: T) {
+        // Broadcast to all subscribers and remove any senders that return an error (most likely because reciever dropped because actor already stopped)
+        self.subscribers
+            .retain(|_actor_id, sender| sender.send(msg.clone()).is_ok())
     }
 }
 
 impl<T: Message<Result = ()> + Clone> Addr<Broker<T>> {
     /// Publishes a message of the specified type.
     pub fn publish(&mut self, msg: T) -> Result<()> {
-        self.send(Publish(msg))
+        self.send(msg)
     }
 }
