@@ -72,15 +72,17 @@ mod service;
 mod supervisor;
 
 #[cfg(all(feature = "anyhow", feature = "eyre"))]
-compile_error!(r#"
+compile_error!(
+    r#"
     features `xactor/anyhow` and `xactor/eyre` are mutually exclusive.
     If you are trying to disable anyhow set `default-features = false`.
-"#);
+"#
+);
 
-#[cfg(feature="anyhow")]
+#[cfg(feature = "anyhow")]
 pub use anyhow as error;
 
-#[cfg(feature="eyre")]
+#[cfg(feature = "eyre")]
 pub use eyre as error;
 
 /// Alias of error::Result
@@ -89,7 +91,7 @@ pub type Result<T> = error::Result<T>;
 /// Alias of error::Error
 pub type Error = error::Error;
 
-pub type ActorId = u64;
+pub type ActorId = usize;
 
 pub use actor::{Actor, Handler, Message, StreamHandler};
 pub use addr::{Addr, WeakAddr};

@@ -4,7 +4,7 @@ use futures::future::Shared;
 use futures::Future;
 use std::hash::{Hash, Hasher};
 use std::pin::Pin;
-use std::sync::{Arc, Mutex, Weak};
+use std::sync::{Arc, Weak};
 
 type ExecFuture<'a> = Pin<Box<dyn Future<Output = ()> + Send + 'a>>;
 
@@ -52,6 +52,8 @@ impl<A> PartialEq for Addr<A> {
         self.actor_id == other.actor_id
     }
 }
+
+impl<A> Eq for Addr<A> {}
 
 impl<A> Hash for Addr<A> {
     fn hash<H: Hasher>(&self, state: &mut H) {
@@ -111,29 +113,33 @@ impl<A: Actor> Addr<A> {
     {
         let weak_tx = Arc::downgrade(&self.tx);
 
-        Caller {
-            actor_id: self.actor_id.clone(),
-            caller_fn: Mutex::new(Box::new(move |msg| {
-                let weak_tx_option = weak_tx.upgrade();
-                Box::pin(async move {
-                    match weak_tx_option {
-                        Some(tx) => {
-                            let (oneshot_tx, oneshot_rx) = oneshot::channel();
+        let closure = move |msg: T| {
+            let weak_tx_option = weak_tx.upgrade();
+            Box::pin(async move {
+                match weak_tx_option {
+                    Some(tx) => {
+                        let (oneshot_tx, oneshot_rx) = oneshot::channel();
 
-                            mpsc::UnboundedSender::clone(&tx).start_send(ActorEvent::Exec(
-                                Box::new(move |actor, ctx| {
-                                    Box::pin(async move {
-                                        let res = Handler::handle(&mut *actor, ctx, msg).await;
-                                        let _ = oneshot_tx.send(res);
-                                    })
-                                }),
-                            ))?;
-                            Ok(oneshot_rx.await?)
-                        }
-                        None => Err(crate::error::anyhow!("Actor Dropped")),
+                        mpsc::UnboundedSender::clone(&tx).start_send(ActorEvent::Exec(
+                            Box::new(move |actor, ctx| {
+                                Box::pin(async move {
+                                    let res = Handler::handle(&mut *actor, ctx, msg).await;
+                                    let _ = oneshot_tx.send(res);
+                                })
+                            }),
+                        ))?;
+
+                        let result = oneshot_rx.await?;
+                        Ok(result)
                     }
-                })
-            })),
+                    None => Err(crate::error::anyhow!("Actor Dropped")),
+                }
+            }) as Pin<Box<dyn Future<Output = Result<T::Result>>>>
+        };
+
+        Caller {
+            actor_id: self.actor_id,
+            caller_fn: Box::new(closure),
         }
     }
 
@@ -143,21 +149,25 @@ impl<A: Actor> Addr<A> {
         A: Handler<T>,
     {
         let weak_tx = Arc::downgrade(&self.tx);
+
+        let closure = move |msg| match weak_tx.upgrade() {
+            Some(tx) => {
+                mpsc::UnboundedSender::clone(&tx).start_send(ActorEvent::Exec(Box::new(
+                    move |actor, ctx| {
+                        Box::pin(async move {
+                            Handler::handle(&mut *actor, ctx, msg).await;
+                        })
+                    },
+                )))?;
+                Ok(())
+            }
+            None => Ok(()),
+        };
+
+        let sender_fn = Box::new(closure);
         Sender {
-            actor_id: self.actor_id.clone(),
-            sender_fn: Box::new(move |msg| match weak_tx.upgrade() {
-                Some(tx) => {
-                    mpsc::UnboundedSender::clone(&tx).start_send(ActorEvent::Exec(Box::new(
-                        move |actor, ctx| {
-                            Box::pin(async move {
-                                Handler::handle(&mut *actor, ctx, msg).await;
-                            })
-                        },
-                    )))?;
-                    Ok(())
-                }
-                None => Ok(()),
-            }),
+            actor_id: self.actor_id,
+            sender_fn,
         }
     }
 
@@ -183,6 +193,8 @@ impl<A> PartialEq for WeakAddr<A> {
     }
 }
 
+impl<A> Eq for WeakAddr<A> {}
+
 impl<A> Hash for WeakAddr<A> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.actor_id.hash(state)
@@ -191,14 +203,11 @@ impl<A> Hash for WeakAddr<A> {
 
 impl<A> WeakAddr<A> {
     pub fn upgrade(&self) -> Option<Addr<A>> {
-        match self.tx.upgrade() {
-            Some(tx) => Some(Addr {
-                actor_id: self.actor_id,
-                tx,
-                rx_exit: self.rx_exit.clone(),
-            }),
-            None => None,
-        }
+        self.tx.upgrade().map(|tx| Addr {
+            actor_id: self.actor_id,
+            tx,
+            rx_exit: self.rx_exit.clone(),
+        })
     }
 }
 

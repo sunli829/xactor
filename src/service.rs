@@ -1,6 +1,6 @@
 use crate::actor::ActorManager;
-use crate::{Actor, Addr};
 use crate::error::Result;
+use crate::{Actor, Addr};
 use fnv::FnvHasher;
 use futures::lock::Mutex;
 use once_cell::sync::OnceCell;

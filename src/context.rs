@@ -7,7 +7,9 @@ use futures::future::{AbortHandle, Abortable, Shared};
 use futures::{Stream, StreamExt};
 use once_cell::sync::OnceCell;
 use slab::Slab;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::fmt;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Mutex;
 use std::sync::{Arc, Weak};
 use std::time::Duration;
 
@@ -16,8 +18,16 @@ pub struct Context<A> {
     actor_id: ActorId,
     tx: Weak<mpsc::UnboundedSender<ActorEvent<A>>>,
     pub(crate) rx_exit: Option<Shared<oneshot::Receiver<()>>>,
-    pub(crate) streams: Slab<AbortHandle>,
-    pub(crate) intervals: Slab<AbortHandle>,
+    pub(crate) streams: Arc<Mutex<Slab<AbortHandle>>>,
+    pub(crate) intervals: Arc<Mutex<Slab<AbortHandle>>>,
+}
+
+impl<A> fmt::Debug for Context<A> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Context")
+            .field("actor_id", &self.actor_id)
+            .finish()
+    }
 }
 
 impl<A> Context<A> {
@@ -28,7 +38,7 @@ impl<A> Context<A> {
         mpsc::UnboundedReceiver<ActorEvent<A>>,
         Arc<mpsc::UnboundedSender<ActorEvent<A>>>,
     ) {
-        static ACTOR_ID: OnceCell<AtomicU64> = OnceCell::new();
+        static ACTOR_ID: OnceCell<AtomicUsize> = OnceCell::new();
 
         // Get an actor id
         let actor_id = ACTOR_ID
@@ -76,14 +86,18 @@ impl<A> Context<A> {
     }
 
     pub fn abort_intervals(&mut self) {
-        for handle in self.intervals.drain() {
-            handle.abort()
+        if let Ok(mut intervals) = self.intervals.lock() {
+            for handle in intervals.drain() {
+                handle.abort()
+            }
         }
     }
 
     pub fn abort_streams(&mut self) {
-        for handle in self.streams.drain() {
-            handle.abort();
+        if let Ok(mut intervals) = self.streams.lock() {
+            for handle in intervals.drain() {
+                handle.abort()
+            }
         }
     }
 
@@ -149,7 +163,9 @@ impl<A> Context<A> {
         A: StreamHandler<S::Item>,
     {
         let tx = self.tx.clone();
-        let entry = self.streams.vacant_entry();
+        let mut streams = self.streams.lock().unwrap();
+
+        let entry = streams.vacant_entry();
         let id = entry.key();
         let (handle, registration) = futures::future::AbortHandle::new_pair();
         entry.insert(handle);
@@ -209,59 +225,78 @@ impl<A> Context<A> {
     ///
     /// We use `Sender` instead of `Addr` so that the interval doesn't keep reference to address and prevent the actor from being dropped and stopped
 
-    pub fn send_later<T>(&mut self, msg: T, after: Duration)
+    pub fn send_later<T>(&mut self, msg: T, after: Duration) -> AbortHandle
     where
         A: Handler<T>,
         T: Message<Result = ()>,
     {
         let sender = self.address().sender();
-        let entry = self.intervals.vacant_entry();
+        let intervals_clone = self.intervals.clone();
+
+        let mut intervals = self.intervals.lock().unwrap();
+
+        let entry = intervals.vacant_entry();
+        let key = entry.key();
+
         let (handle, registration) = futures::future::AbortHandle::new_pair();
-        entry.insert(handle);
+        entry.insert(handle.clone());
 
         spawn(Abortable::new(
             async move {
                 sleep(after).await;
                 sender.send(msg).ok();
+                // We have to remove the entry after the send has been completed or the slab will grow indefinitely
+                let mut intervals = intervals_clone.lock().unwrap();
+                intervals.remove(key);
             },
             registration,
         ));
+        handle
     }
 
     /// Sends the message  to self, at a specified fixed interval.
     /// The message is created each time using a closure `f`.
-    pub fn send_interval_with<T, F>(&mut self, f: F, dur: Duration)
+    pub fn send_interval_with<T, F>(&mut self, f: F, dur: Duration) -> AbortHandle
     where
         A: Handler<T>,
         F: Fn() -> T + Sync + Send + 'static,
         T: Message<Result = ()>,
     {
         let sender = self.address().sender();
+        let intervals_clone = self.intervals.clone();
 
-        let entry = self.intervals.vacant_entry();
+        let mut intervals = self.intervals.lock().unwrap();
+
+        let entry = intervals.vacant_entry();
+        let key = entry.key();
+
         let (handle, registration) = futures::future::AbortHandle::new_pair();
-        entry.insert(handle);
+        entry.insert(handle.clone());
 
         spawn(Abortable::new(
             async move {
                 loop {
                     sleep(dur).await;
                     if sender.send(f()).is_err() {
+                        // Again, we have to remove the entry after the send has been completed or the slab will grow indefinitely
+                        let mut intervals = intervals_clone.lock().unwrap();
+                        intervals.remove(key);
                         break;
                     }
                 }
             },
             registration,
         ));
+        handle
     }
 
     /// Sends the message `msg` to self, at a specified fixed interval.
-    pub fn send_interval<T>(&mut self, msg: T, dur: Duration)
+    pub fn send_interval<T>(&mut self, msg: T, dur: Duration) -> AbortHandle
     where
         A: Handler<T>,
         T: Message<Result = ()> + Clone + Sync,
     {
-        self.send_interval_with(move || msg.clone(), dur);
+        self.send_interval_with(move || msg.clone(), dur)
     }
 
     /// Subscribes to a message of a specified type.
@@ -273,7 +308,7 @@ impl<A> Context<A> {
         let sender = self.address().sender();
         broker
             .send(Subscribe {
-                id: self.actor_id,
+                actor_id: self.actor_id,
                 sender,
             })
             .ok();
@@ -283,6 +318,8 @@ impl<A> Context<A> {
     /// Unsubscribe to a message of a specified type.
     pub async fn unsubscribe<T: Message<Result = ()>>(&self) -> Result<()> {
         let broker = Broker::<T>::from_registry().await?;
-        broker.send(Unsubscribe { id: self.actor_id })
+        broker.send(Unsubscribe {
+            actor_id: self.actor_id,
+        })
     }
 }
